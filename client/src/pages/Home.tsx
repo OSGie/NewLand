@@ -4,57 +4,1007 @@ import layout from "@/content/layout.ar.json";
 import claims from "@/content/claims.ar.json";
 import { getPocContext, usePocTracking } from "@/hooks/usePocTracking";
 import { trpc } from "@/lib/trpc";
-import { ADDONS, formatEgp, getPlansForPersona, isCampaignActive, PROMO, type Persona } from "@shared/poc";
+import { ADDONS, formatEgp, getPlansForPersona, isCampaignActive, PROMO, type Persona, type Plan } from "@shared/poc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, Check, Clock3, FileDown, MessageCircle, MonitorSmartphone, ShieldCheck, Sparkles, UsersRound, X, Zap, FolderKanban, Layers3, ListChecks, Plus, ArrowLeft, Play, Volume2, Building2, Globe2, Mail, MapPin, Phone } from "lucide-react";
+import {
+  ChevronDown,
+  Check,
+  Clock3,
+  FileDown,
+  MessageCircle,
+  MonitorSmartphone,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
+  X,
+  Zap,
+  FolderKanban,
+  Layers3,
+  ListChecks,
+  ArrowLeft,
+  Play,
+  Volume2,
+  Building2,
+  Globe2,
+  Mail,
+  MapPin,
+  Phone,
+  Calculator,
+  Percent,
+  CheckCircle2,
+  TrendingUp,
+  Receipt,
+  FileSpreadsheet,
+  BadgePercent,
+  Lock,
+  Star,
+  Award,
+  Search,
+  ArrowUpRight
+} from "lucide-react";
 import { FormEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 type Consent = { analytics: boolean; marketing: boolean };
-const WHATSAPP_URL = "https://wa.me/201000000000?text=" + encodeURIComponent("مرحبًا، أريد مساعدة لاختيار باقة موفوتر المناسبة.");
+const WHATSAPP_URL = "https://wa.me/201000000000?text=" + encodeURIComponent("مرحبًا، أريد مساعدة لاختيار باقة موفوتر المناسبة لحجم شغلي.");
 
-function scrollToId(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }
-function readConsent(): Consent | null { try { return JSON.parse(localStorage.getItem("mof_consent") ?? "null"); } catch { return null; } }
-function timeLeft(now: number) { const value = Math.max(0, new Date(PROMO.deadlineIso).getTime() - now); return `${Math.floor(value / 86400000)} يوم · ${String(Math.floor((value % 86400000) / 3600000)).padStart(2, "0")}:${String(Math.floor((value % 3600000) / 60000)).padStart(2, "0")}:${String(Math.floor((value % 60000) / 1000)).padStart(2, "0")}`; }
-
-function ProductCapabilities({ sectionRef, onAction }: { sectionRef: RefObject<HTMLElement | null>; onAction: (id: string, status: string) => void }) {
-  return <section ref={sectionRef} id="capabilities" className="mof-section bg-[#F6F6FF]"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layout.capabilities.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{layout.capabilities.title}</h2><p className="mt-5 leading-8 text-[#5b5c72]">{layout.capabilities.body}</p></div><div className="mt-11 grid gap-5 md:grid-cols-2">{layout.capabilities.items.map((item, index) => { const claim = claims.capabilities[item.id as keyof typeof claims.capabilities]; const isComing = item.status === "coming"; const isSpecial = item.status === "special"; const actionLabel = isComing ? layout.capabilities.waitlist : isSpecial ? "شاهد الباقة الخاصة" : "شاهد الباقات"; return <article key={item.id} className={`relative overflow-hidden rounded-[1.8rem] border p-6 shadow-[0_20px_50px_-42px_#4046B5] ${isComing ? "border-[#e6b75b]/35 bg-[#fffaf0]" : isSpecial ? "border-[#4046B5]/25 bg-[#0B0B22] text-white" : "border-[#4046B5]/12 bg-white"}`}><div className="absolute -left-9 -top-9 h-28 w-28 rounded-full bg-[#4046B5]/[.06]"/><div className="relative flex items-start justify-between gap-5"><div><span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ${isComing ? "bg-[#f3b750]/20 text-[#986408]" : isSpecial ? "bg-white/15 text-white" : "bg-[#EDEEF9] text-[#4046B5]"}`}>{item.badge}</span><p className={`mt-5 text-xs font-bold ${isSpecial ? "text-[#c6c8ff]" : "text-[#4046B5]"}`}>{item.name}</p><h3 className="mt-2 text-2xl font-extrabold leading-9">{item.title}</h3></div><span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${isComing ? "bg-[#f3b750]/15 text-[#b47a10]" : isSpecial ? "bg-white/10 text-[#d7d8ff]" : "bg-[#EDEEF9] text-[#4046B5]"}`}>{isComing ? <Clock3 className="h-6 w-6"/> : index === 0 ? <FileDown className="h-6 w-6"/> : <Zap className="h-6 w-6"/>}</span></div><p className={`relative mt-5 min-h-21 text-sm leading-7 ${isSpecial ? "text-white/70" : "text-[#5b5c72]"}`}>{claim.body}</p><div className={`relative mt-6 flex items-center justify-between gap-4 border-t pt-5 ${isSpecial ? "border-white/10" : "border-[#4046B5]/10"}`}><span className={`text-xs font-bold ${isSpecial ? "text-[#c6c8ff]" : isComing ? "text-[#986408]" : "text-[#4046B5]"}`}>{item.plan}</span><Button variant={isSpecial ? "outline" : "default"} onClick={() => onAction(item.id, item.status)} className={`rounded-xl ${isSpecial ? "border-white/25 bg-transparent text-white hover:bg-white hover:text-[#4046B5]" : isComing ? "bg-[#090A20] hover:bg-[#28294b]" : "bg-[#4046B5] hover:bg-[#343aa0]"}`}>{actionLabel}</Button></div></article>; })}</div></div></section>;
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function IssuanceFollowUp({ onAction, onDocumentClick }: { onAction: (id: string, status: string) => void; onDocumentClick: (documentId: string) => void }) {
+function readConsent(): Consent | null {
+  try {
+    return JSON.parse(localStorage.getItem("mof_consent") ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+function timeLeft(now: number) {
+  const value = Math.max(0, new Date(PROMO.deadlineIso).getTime() - now);
+  const days = Math.floor(value / 86400000);
+  const hours = String(Math.floor((value % 86400000) / 3600000)).padStart(2, "0");
+  const minutes = String(Math.floor((value % 3600000) / 60000)).padStart(2, "0");
+  const seconds = String(Math.floor((value % 60000) / 1000)).padStart(2, "0");
+  return `${days} يوم · ${hours}:${minutes}:${seconds}`;
+}
+
+// ---------------------------------------------------------------------------
+// 1. Interactive Tax & Invoicing Simulator
+// ---------------------------------------------------------------------------
+function TaxInvoicingSimulator({ persona, onSelectPlan }: { persona: Persona; onSelectPlan: (sku: string) => void }) {
+  const [monthlySales, setMonthlySales] = useState<number>(persona === "firm" ? 250000 : 80000);
+  const [invoiceCount, setInvoiceCount] = useState<number>(persona === "firm" ? 45 : 15);
+  const [whtRate, setWhtRate] = useState<number>(1); // 1%, 3%, 5%
+  const [includeVat, setIncludeVat] = useState<boolean>(true);
+
+  // Computations
+  const vatAmount = includeVat ? Math.round(monthlySales * 0.14) : 0;
+  const whtAmount = Math.round((monthlySales * whtRate) / 100);
+  const totalTaxMonthly = vatAmount + whtAmount;
+  const estimatedHoursSaved = Math.max(4, Math.round(invoiceCount * 0.45 + (persona === "firm" ? 12 : 5)));
+  const estimatedCostSaved = Math.round(estimatedHoursSaved * 120);
+
+  // Recommended plan based on inputs
+  const recommendedSku = useMemo(() => {
+    if (persona === "firm") {
+      if (invoiceCount <= 20) return "professional";
+      if (invoiceCount <= 50) return "expert";
+      if (invoiceCount <= 100) return "consultant";
+      return "elite";
+    } else {
+      return invoiceCount > 25 ? "special" : "founder";
+    }
+  }, [persona, invoiceCount]);
+
+  return (
+    <section id="tax-simulator" className="mof-section relative overflow-hidden bg-gradient-to-b from-[#F3F4FB] via-white to-[#F3F4FB]">
+      <div className="container relative z-10">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#4046B5]/20 bg-white px-3.5 py-1.5 text-xs font-extrabold text-[#4046B5] shadow-xs">
+            <Calculator className="h-4 w-4 text-[#4046B5]" />
+            حاسبة التوفير والضرائب التفاعلية
+          </div>
+          <h2 className="mt-4 text-3xl font-extrabold leading-tight text-[#07081A] md:text-5xl">
+            احسب توفيرك الشهري وضريبتك في ثوانٍ معدودة!
+          </h2>
+          <p className="mt-4 text-base leading-8 text-[#5b5c72] md:text-lg">
+            حرّك المؤشرات وشوف بنفسك إزاي موفوتر بيوفّر على مكتبك أو شركتك ساعات شغل مرهقة ويحميك من أخطاء الحسابات وغرامات التأخير.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] items-start">
+          {/* Controls Box */}
+          <div className="rounded-[2.2rem] border border-[#4046B5]/15 bg-white p-6 md:p-8 shadow-[0_25px_60px_-30px_rgba(64,70,181,0.15)]">
+            <h3 className="flex items-center gap-2 text-xl font-extrabold text-[#07081A]">
+              <Percent className="h-5 w-5 text-[#4046B5]" />
+              بيانات نشاطك التقديرية
+            </h3>
+
+            {/* Slider 1: Monthly Sales */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-sm font-bold">
+                <span className="text-[#5b5c72]">إجمالي حجم التعاملات أو المبيعات الشهرية:</span>
+                <span className="font-[Inter] text-lg font-extrabold text-[#4046B5]" dir="ltr">
+                  {monthlySales.toLocaleString("en-US")} ج.م
+                </span>
+              </div>
+              <input
+                type="range"
+                min="10000"
+                max="1000000"
+                step="10000"
+                value={monthlySales}
+                onChange={(e) => setMonthlySales(Number(e.target.value))}
+                className="mt-3 h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-[#ECECF7] accent-[#4046B5]"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-[#8e90a8]">
+                <span>10 آلاف ج.م</span>
+                <span>500 ألف ج.م</span>
+                <span>مليون ج.م</span>
+              </div>
+            </div>
+
+            {/* Slider 2: Invoice Count */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-sm font-bold">
+                <span className="text-[#5b5c72]">متوسط عدد الفواتير أو الإيصالات شهريًا:</span>
+                <span className="font-[Inter] text-lg font-extrabold text-[#4046B5]">
+                  {invoiceCount} مستند
+                </span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="200"
+                step="5"
+                value={invoiceCount}
+                onChange={(e) => setInvoiceCount(Number(e.target.value))}
+                className="mt-3 h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-[#ECECF7] accent-[#4046B5]"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-[#8e90a8]">
+                <span>5 مستندات</span>
+                <span>100 مستند</span>
+                <span>200+ مستند</span>
+              </div>
+            </div>
+
+            {/* Tax Settings */}
+            <div className="mt-7 border-t border-[#4046B5]/10 pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-[#07081A]">
+                  <Checkbox checked={includeVat} onCheckedChange={(val) => setIncludeVat(Boolean(val))} />
+                  حساب ضريبة القيمة المضافة VAT (14%)
+                </label>
+
+                <div className="flex items-center gap-2 text-xs font-bold">
+                  <span className="text-[#5b5c72]">ضريبة الخصم (نموذج 41):</span>
+                  <div className="flex rounded-lg bg-[#ECECF7] p-0.5">
+                    {[1, 3, 5].map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => setWhtRate(rate)}
+                        className={`rounded-md px-2.5 py-1 transition ${whtRate === rate ? "bg-[#4046B5] text-white shadow-xs" : "text-[#5b5c72] hover:text-[#4046B5]"}`}
+                      >
+                        {rate}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Results Summary Box */}
+          <div className="relative overflow-hidden rounded-[2.2rem] border border-white/10 bg-[#07081A] p-7 text-white shadow-2xl">
+            <div className="absolute -left-12 -top-12 h-36 w-36 rounded-full bg-[#4046B5]/30 blur-2xl" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <span className="mof-stamp-white px-3 py-1 text-xs">تقرير الحسبة التقديرية</span>
+                <span className="text-xs font-bold text-[#b9bdff]">مصلحة الضرائب ETA</span>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-white/10 bg-white/[.05] p-4">
+                  <p className="text-xs font-bold text-white/60">ضريبة القيمة المضافة (14%)</p>
+                  <p className="mt-2 font-[Inter] text-xl font-extrabold text-[#7d82eb]" dir="ltr">
+                    {vatAmount.toLocaleString("en-US")} ج.م
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[.05] p-4">
+                  <p className="text-xs font-bold text-white/60">خصم المنبع (نموذج 41)</p>
+                  <p className="mt-2 font-[Inter] text-xl font-extrabold text-[#7d82eb]" dir="ltr">
+                    {whtAmount.toLocaleString("en-US")} ج.م
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-gradient-to-r from-[#4046B5] to-[#272d82] p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-white/80">الوقت التقديري المُوفَّر شهريًا</p>
+                    <p className="mt-1 text-2xl font-extrabold text-white">
+                      {estimatedHoursSaved} ساعة عمل
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-[#b9bdff]">قيمة التوفير المباشر</p>
+                    <p className="mt-1 font-[Inter] text-xl font-extrabold text-[#38ef7d]" dir="ltr">
+                      ~ {estimatedCostSaved.toLocaleString("en-US")} ج.م
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.04] p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-[#b9bdff]">الباقة الأنسب لحجم هذا النشاط:</span>
+                    <p className="mt-1 text-base font-extrabold text-white">
+                      {persona === "firm"
+                        ? recommendedSku === "professional" ? "باقة المحترف (10 ملفات)"
+                        : recommendedSku === "expert" ? "باقة الخبير (25 ملف)"
+                        : recommendedSku === "consultant" ? "باقة الاستشاري (50 ملف)"
+                        : "باقة النخبة (100 ملف)"
+                        : recommendedSku === "special" ? "الباقة الخاصة (إصدار متكامل)" : "باقة رواد الأعمال"}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      onSelectPlan(recommendedSku);
+                      scrollToId("pricing");
+                    }}
+                    className="rounded-xl bg-white text-xs font-extrabold text-[#4046B5] hover:bg-[#ECECF7]"
+                  >
+                    اختر هذه الباقة
+                    <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2. Product Capabilities Section
+// ---------------------------------------------------------------------------
+function ProductCapabilities({
+  sectionRef,
+  onAction,
+}: {
+  sectionRef: RefObject<HTMLElement | null>;
+  onAction: (id: string, status: string) => void;
+}) {
+  return (
+    <section ref={sectionRef} id="capabilities" className="mof-section bg-[#F6F6FF]">
+      <div className="container">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mof-eyebrow">{layout.capabilities.eyebrow}</p>
+          <h2 className="mt-4 text-3xl font-extrabold leading-tight text-[#07081A] md:text-5xl">
+            {layout.capabilities.title}
+          </h2>
+          <p className="mt-4 text-base leading-8 text-[#5b5c72] md:text-lg">
+            منظومة موحدة تجمع كل ما تحتاجه للتعامل مع منظومة الفاتورة والإيصال الإلكتروني بدون تشتت بين برامج متعددة.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
+          {layout.capabilities.items.map((item, index) => {
+            const claim = claims.capabilities[item.id as keyof typeof claims.capabilities];
+            const isComing = item.status === "coming";
+            const isSpecial = item.status === "special";
+            const actionLabel = isComing
+              ? layout.capabilities.waitlist
+              : isSpecial
+              ? "شاهد الباقة الخاصة"
+              : "شاهد تفاصيل الباقة";
+
+            return (
+              <article
+                key={item.id}
+                className={`relative overflow-hidden rounded-[2rem] border p-7 transition-all duration-300 hover:-translate-y-1 ${
+                  isComing
+                    ? "border-[#e6b75b]/40 bg-[#fffdf7]"
+                    : isSpecial
+                    ? "border-[#4046B5]/30 bg-[#07081A] text-white shadow-xl"
+                    : "border-[#4046B5]/15 bg-white shadow-sm hover:shadow-md"
+                }`}
+              >
+                <div className="relative flex items-start justify-between gap-5">
+                  <div>
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ${
+                        isComing
+                          ? "bg-[#f3b750]/20 text-[#986408]"
+                          : isSpecial
+                          ? "bg-white/15 text-white"
+                          : "bg-[#ECECF7] text-[#4046B5]"
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                    <p className={`mt-4 text-xs font-extrabold ${isSpecial ? "text-[#c6c8ff]" : "text-[#4046B5]"}`}>
+                      {item.name}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-extrabold leading-tight">{item.title}</h3>
+                  </div>
+                  <span
+                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${
+                      isComing
+                        ? "bg-[#f3b750]/15 text-[#b47a10]"
+                        : isSpecial
+                        ? "bg-white/10 text-[#d7d8ff]"
+                        : "bg-[#ECECF7] text-[#4046B5]"
+                    }`}
+                  >
+                    {isComing ? (
+                      <Clock3 className="h-6 w-6" />
+                    ) : index === 0 ? (
+                      <FileSpreadsheet className="h-6 w-6" />
+                    ) : (
+                      <Zap className="h-6 w-6" />
+                    )}
+                  </span>
+                </div>
+
+                <p className={`relative mt-5 text-sm leading-7 ${isSpecial ? "text-white/75" : "text-[#5b5c72]"}`}>
+                  {claim.body}
+                </p>
+
+                <div
+                  className={`relative mt-6 flex items-center justify-between gap-4 border-t pt-5 ${
+                    isSpecial ? "border-white/10" : "border-[#4046B5]/10"
+                  }`}
+                >
+                  <span
+                    className={`text-xs font-bold ${
+                      isSpecial ? "text-[#c6c8ff]" : isComing ? "text-[#986408]" : "text-[#4046B5]"
+                    }`}
+                  >
+                    {item.plan}
+                  </span>
+                  <Button
+                    variant={isSpecial ? "outline" : "default"}
+                    onClick={() => onAction(item.id, item.status)}
+                    className={`rounded-xl ${
+                      isSpecial
+                        ? "border-white/25 bg-transparent text-white hover:bg-white hover:text-[#4046B5]"
+                        : isComing
+                        ? "bg-[#07081A] hover:bg-[#28294b]"
+                        : "bg-[#4046B5] hover:bg-[#343aa0]"
+                    }`}
+                  >
+                    {actionLabel}
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. Issuance & Follow-up Section
+// ---------------------------------------------------------------------------
+function IssuanceFollowUp({
+  onAction,
+  onDocumentClick,
+}: {
+  onAction: (id: string, status: string) => void;
+  onDocumentClick: (documentId: string) => void;
+}) {
   const issuance = claims.issuance;
-  const toneClasses: Record<string, string> = { success: "bg-[#e4f8f0] text-[#1b875e]", warning: "bg-[#fff2d7] text-[#a86d07]", scheduled: "bg-[#EDEEF9] text-[#4046B5]", neutral: "bg-[#f0f1f5] text-[#5b5c72]" };
-  return <section id="issuance" className="mof-section bg-[#0B0B22] text-white"><div className="container"><div className="grid items-center gap-9 lg:grid-cols-[.8fr_1.2fr]"><div><p className="mof-eyebrow text-[#c6c8ff]">الإصدار والمتابعة</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{issuance.title}</h2><p className="mt-5 leading-8 text-white/70">{issuance.body}</p><p className="mt-6 inline-flex rounded-full border border-[#8e93f4]/35 bg-[#4046B5]/25 px-3 py-1.5 text-xs font-bold text-[#d8daff]"><ShieldCheck className="ml-2 h-4 w-4"/>{issuance.compliance}</p><div className="mt-7 space-y-3">{issuance.benefits.map(benefit => <div key={benefit} className="flex gap-3 text-sm leading-7 text-white/78"><span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#4046B5]"><Check className="h-3 w-3"/></span>{benefit}</div>)}</div><Button onClick={() => onAction("sender_details", "special")} className="mt-8 h-12 rounded-xl bg-white px-5 text-[#4046B5] hover:bg-[#EDEEF9]">شوف تفاصيل ETA Portal Sender<ArrowLeft className="mr-2 h-4 w-4"/></Button></div><div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[.055] p-4 shadow-2xl"><div className="rounded-[1.5rem] border border-white/10 bg-[#111331] p-5"><div className="flex items-center justify-between border-b border-white/10 pb-4"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#f3b750]"/><span className="h-2.5 w-2.5 rounded-full bg-[#6d72db]"/><span className="h-2.5 w-2.5 rounded-full bg-[#38c99b]"/></div><span className="text-xs font-bold text-[#c6c8ff]">لوحة متابعة المستندات</span></div><p className="mt-4 text-[11px] leading-6 text-white/45">حالات توضيحية للعرض وليست بيانات تشغيلية فعلية.</p><div className="mt-4 space-y-2">{issuance.documents.map(document => <button key={document.id} onClick={() => onDocumentClick(document.id)} className="flex w-full items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/[.045] p-4 text-right transition hover:bg-white/[.09] active:scale-[.99]"><div><p className="text-sm font-extrabold">{document.name}</p><p className="mt-1 text-[11px] leading-5 text-white/55">{document.detail}</p></div><span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-extrabold ${toneClasses[document.tone]}`}>{document.status}</span></button>)}</div></div></div></div></div></section>;
+  const toneClasses: Record<string, string> = {
+    success: "bg-[#e4f8f0] text-[#1b875e]",
+    warning: "bg-[#fff2d7] text-[#a86d07]",
+    scheduled: "bg-[#ECECF7] text-[#4046B5]",
+    neutral: "bg-[#f0f1f5] text-[#5b5c72]",
+  };
+
+  return (
+    <section id="issuance" className="mof-section bg-[#07081A] text-white">
+      <div className="container">
+        <div className="grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#8e93f4]/35 bg-[#4046B5]/25 px-3.5 py-1.5 text-xs font-bold text-[#d8daff]">
+              <ShieldCheck className="h-4 w-4 text-[#38ef7d]" />
+              {issuance.compliance}
+            </div>
+            <h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{issuance.title}</h2>
+            <p className="mt-5 text-base leading-8 text-white/75">{issuance.body}</p>
+
+            <div className="mt-7 space-y-3">
+              {issuance.benefits.map((benefit) => (
+                <div key={benefit} className="flex gap-3 text-sm leading-7 text-white/85">
+                  <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#4046B5] text-white">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  {benefit}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => onAction("sender_details", "special")}
+              className="mt-8 h-12 rounded-xl bg-white px-6 font-extrabold text-[#4046B5] hover:bg-[#ECECF7]"
+            >
+              شاهد تفاصيل ETA Portal Sender
+              <ArrowLeft className="mr-2 h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/[.04] p-5 shadow-2xl">
+            <div className="rounded-[1.6rem] border border-white/10 bg-[#101132] p-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#f3b750]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#6d72db]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#38c99b]" />
+                </div>
+                <span className="mof-stamp-white px-2.5 py-0.5 text-[11px]">متابعة فواتير وإيصالات ETA</span>
+              </div>
+
+              <p className="mt-4 text-[11px] leading-5 text-white/45">
+                حالات توضيحية تحاكي ربط المستندات مع مصلحة الضرائب المصرية لحظة بلحظة.
+              </p>
+
+              <div className="mt-4 space-y-2.5">
+                {issuance.documents.map((document) => (
+                  <button
+                    key={document.id}
+                    onClick={() => onDocumentClick(document.id)}
+                    className="flex w-full items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/[.045] p-4 text-right transition hover:bg-white/[.09] active:scale-[.99]"
+                  >
+                    <div>
+                      <p className="text-sm font-extrabold text-white">{document.name}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-white/55">{document.detail}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-extrabold ${toneClasses[document.tone]}`}>
+                      {document.status}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-function OnboardingJourney({ onCta }: { onCta: () => void }) {
-  const onboarding = claims.onboarding;
-  return <section id="onboarding" className="mof-section bg-white"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{onboarding.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{onboarding.title}</h2></div><div className="mt-11 grid gap-5 md:grid-cols-3">{onboarding.steps.map((step, index) => <article key={step.number} className="relative overflow-hidden rounded-[1.75rem] border border-[#4046B5]/12 bg-[#fbfbff] p-6"><span className="font-[Inter] text-5xl font-extrabold text-[#4046B5]/15">{step.number}</span><span className="absolute left-5 top-6 grid h-10 w-10 place-items-center rounded-xl bg-[#EDEEF9] text-[#4046B5]">{index === 0 ? <Check className="h-5 w-5"/> : index === 1 ? <UsersRound className="h-5 w-5"/> : <FileDown className="h-5 w-5"/>}</span><h3 className="mt-5 text-xl font-extrabold">{step.title}</h3><p className="mt-3 text-sm leading-7 text-[#5b5c72]">{step.body}</p></article>)}</div><div className="mt-6 grid gap-5 rounded-[1.8rem] bg-[#4046B5] p-7 text-white lg:grid-cols-[1fr_auto] lg:items-center lg:p-9"><div><p className="text-xs font-bold tracking-[.16em] text-[#d8d9ff]">دعم بداية العمل</p><h3 className="mt-3 text-2xl font-extrabold">{onboarding.supportTitle}</h3><p className="mt-3 max-w-3xl text-sm leading-8 text-white/76">{onboarding.supportBody}</p><p className="mt-4 text-xs leading-6 text-white/55">{onboarding.paymentNote}</p></div><Button onClick={onCta} className="h-12 rounded-xl bg-white px-6 text-[#4046B5] hover:bg-[#EDEEF9]">{onboarding.cta}<ArrowLeft className="mr-2 h-4 w-4"/></Button></div></div></section>;
-}
-
-function PersonaHero({ persona, onPrimary, onSecondary }: { persona: Persona; onPrimary: () => void; onSecondary: () => void }) {
+// ---------------------------------------------------------------------------
+// 4. Hero Section with Persona Switcher
+// ---------------------------------------------------------------------------
+function PersonaHero({
+  persona,
+  onSwitchPersona,
+  onPrimary,
+  onSecondary,
+}: {
+  persona: Persona;
+  onSwitchPersona: (value: Persona) => void;
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
   const content = sales[persona];
   const visual = content.visual;
-  const image = persona === "firm" ? "/manus-storage/mofawtar-firm-control-room_3e79c06b.png" : "/manus-storage/mofawtar-company-clarity_fb75ed43.png";
-  return <section className="mof-grid relative overflow-hidden"><div className="mof-orbit absolute -right-28 top-14 h-96 w-96 rounded-full bg-[#4046B5]/10 blur-3xl"/><div className="container relative grid min-h-[680px] items-center gap-10 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-22"><div className="mof-reveal"><div className="inline-flex items-center gap-2 rounded-full border border-[#4046B5]/15 bg-white px-3 py-1.5 text-xs font-bold text-[#4046B5]"><Sparkles className="h-4 w-4"/>{content.eyebrow}</div><h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.18] tracking-tight md:text-6xl">{content.title}</h1><p className="mt-6 max-w-2xl text-base leading-8 text-[#54556d] md:text-lg">{content.body}</p><div className="mt-7 grid max-w-2xl gap-3 sm:grid-cols-2">{content.proof.map(item => <div key={item} className="flex items-start gap-3 rounded-xl border border-[#4046B5]/8 bg-white/75 p-3 text-sm font-bold leading-6 text-[#33344e]"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#EDEEF9] text-[#4046B5]"><Check className="h-3.5 w-3.5"/></span>{item}</div>)}</div><div className="mt-9 flex flex-wrap gap-3"><Button size="lg" onClick={onPrimary} className="h-13 rounded-xl bg-[#4046B5] px-6 text-base hover:bg-[#343aa0]">{content.primary}<ArrowLeft className="mr-2 h-4 w-4"/></Button><Button size="lg" variant="outline" onClick={onSecondary} className="h-13 rounded-xl border-[#4046B5]/25 bg-white px-6 text-[#4046B5] hover:bg-[#F3F3FF]">{content.secondary}</Button></div></div><div className="relative mx-auto w-full max-w-xl mof-reveal" style={{ animationDelay: "90ms" }}><div className="absolute -inset-7 rounded-[3rem] bg-[#4046B5]/13 blur-3xl"/><div className="relative overflow-hidden rounded-[2rem] border border-white bg-[#090A20] p-3 shadow-[0_35px_85px_-42px_#121342]"><img src={image} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-screen"/><div className="absolute inset-0 bg-gradient-to-b from-[#0b0d28]/40 via-[#0b0d28]/70 to-[#090a20]"/><div className="relative rounded-[1.45rem] border border-white/10 bg-[#101132]/90 p-5 text-white backdrop-blur-[1px]"><div className="flex items-center justify-between border-b border-white/10 pb-4"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#f3b750]"/><span className="h-2.5 w-2.5 rounded-full bg-[#6d72db]"/><span className="h-2.5 w-2.5 rounded-full bg-[#38c99b]"/></div><span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-[#d7d8ff]">{visual.label}</span></div><div className="mt-5 grid grid-cols-3 gap-3">{visual.stats.map((stat, index) => <div key={stat.label} className={`rounded-xl p-3 ${index === 1 ? "bg-[#4046B5]" : "bg-white/[.06]"}`}><p className="text-[10px] font-bold text-white/55">{stat.label}</p><p className="mt-2 text-xs font-extrabold leading-5">{stat.value}</p></div>)}</div><div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-3"><div className="flex items-center justify-between border-b border-white/10 pb-3"><span className="text-sm font-extrabold">{visual.title}</span><ListChecks className="h-4 w-4 text-[#b9bdff]"/></div><div className="mt-2 space-y-2">{visual.rows.map((row, index) => <div key={row.name} className="flex items-center justify-between rounded-lg bg-white/[.055] px-3 py-3"><span className="text-xs font-bold">{row.name}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${index === 1 ? "bg-[#e9bc61]/15 text-[#f3c967]" : "bg-[#7f84ef]/15 text-[#c6c8ff]"}`}>{row.state}</span></div>)}</div></div><div className="mt-5 flex items-center gap-3 rounded-xl border border-dashed border-white/15 px-3 py-3 text-xs text-white/65"><FolderKanban className="h-5 w-5 text-[#aeb2ff]"/><span>{visual.footer}</span></div></div><div className="mof-stamp absolute -bottom-4 -left-4 bg-white px-4 py-3 text-[#090A20] shadow-xl"><p className="text-[10px] font-bold text-[#4046B5]">موفوتر</p><p className="mt-1 text-sm font-extrabold">مسار أوضح للمستند الضريبي</p></div></div></div></div></section>;
+  const isFirm = persona === "firm";
+
+  return (
+    <section className="mof-grid relative overflow-hidden pt-6 pb-16 md:pt-10 md:pb-24">
+      <div className="mof-orbit absolute -right-28 top-14 h-96 w-96 rounded-full bg-[#4046B5]/12 blur-3xl" />
+      <div className="mof-orbit absolute -left-20 bottom-10 h-80 w-80 rounded-full bg-[#7D82EB]/10 blur-3xl" />
+
+      <div className="container relative z-10">
+        {/* Persona Switcher Bar */}
+        <div className="mx-auto mb-8 flex max-w-md items-center justify-center rounded-2xl border border-[#4046B5]/15 bg-white/90 p-1.5 shadow-sm backdrop-blur-md">
+          <button
+            onClick={() => onSwitchPersona("firm")}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-extrabold transition-all duration-200 ${
+              isFirm
+                ? "bg-[#4046B5] text-white shadow-md shadow-[#4046B5]/25"
+                : "text-[#5b5c72] hover:text-[#4046B5]"
+            }`}
+          >
+            <UsersRound className="h-4 w-4" />
+            لمكاتب المحاسبة (سعات متعددة)
+          </button>
+          <button
+            onClick={() => onSwitchPersona("company")}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-extrabold transition-all duration-200 ${
+              !isFirm
+                ? "bg-[#4046B5] text-white shadow-md shadow-[#4046B5]/25"
+                : "text-[#5b5c72] hover:text-[#4046B5]"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            للشركات والمحاسب المستقل
+          </button>
+        </div>
+
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="mof-reveal">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#4046B5]/20 bg-[#ECECF7] px-3.5 py-1.5 text-xs font-extrabold text-[#4046B5]">
+              <Sparkles className="h-4 w-4 text-[#4046B5]" />
+              {content.eyebrow}
+            </div>
+
+            <h1 className="mt-5 text-4xl font-extrabold leading-[1.2] tracking-tight text-[#07081A] md:text-6xl">
+              {content.title}
+            </h1>
+
+            <p className="mt-6 text-base leading-8 text-[#54556d] md:text-lg">
+              {content.body}
+            </p>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              {content.proof.map((item) => (
+                <div
+                  key={item}
+                  className="flex items-start gap-2.5 rounded-2xl border border-[#4046B5]/10 bg-white/90 p-3.5 text-xs font-bold leading-6 text-[#07081A] shadow-xs backdrop-blur-xs"
+                >
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#ECECF7] text-[#4046B5]">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Button
+                size="lg"
+                onClick={onPrimary}
+                className="h-14 rounded-2xl bg-[#4046B5] px-8 text-base font-extrabold shadow-lg shadow-[#4046B5]/30 transition-all hover:bg-[#343aa0] hover:scale-105 active:scale-95"
+              >
+                {content.primary}
+                <ArrowLeft className="mr-2 h-4 w-4" />
+              </Button>
+
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={onSecondary}
+                className="h-14 rounded-2xl border-[#4046B5]/25 bg-white px-7 text-sm font-extrabold text-[#4046B5] hover:bg-[#ECECF7]"
+              >
+                {content.secondary}
+              </Button>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4 text-xs font-bold text-[#64657a]">
+              <span className="flex items-center gap-1 text-[#10B981]">
+                <ShieldCheck className="h-4 w-4" />
+                ضمان 14 يوم استرجاع
+              </span>
+              <span className="h-3 w-px bg-[#4046B5]/20" />
+              <span>معتمد لمصلحة الضرائب المصرية ETA</span>
+            </div>
+          </div>
+
+          {/* Hero Visual Mockup */}
+          <div className="relative mx-auto w-full max-w-lg mof-reveal" style={{ animationDelay: "100ms" }}>
+            <div className="absolute -inset-4 rounded-[3rem] bg-[#4046B5]/15 blur-2xl" />
+            <div className="relative overflow-hidden rounded-[2.2rem] border border-white bg-[#07081A] p-3 shadow-[0_35px_80px_-30px_#07081A]">
+              <div className="rounded-[1.6rem] border border-white/10 bg-[#101132] p-5 text-white">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#EF4444]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
+                  </div>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-[#d7d8ff]">
+                    {visual.label}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-2.5">
+                  {visual.stats.map((stat, idx) => (
+                    <div
+                      key={stat.label}
+                      className={`rounded-xl p-3 text-center ${
+                        idx === 1 ? "bg-[#4046B5]" : "bg-white/[.06]"
+                      }`}
+                    >
+                      <p className="text-[10px] font-bold text-white/60">{stat.label}</p>
+                      <p className="mt-1 text-xs font-extrabold leading-5">{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-3.5">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                    <span className="text-xs font-extrabold">{visual.title}</span>
+                    <ListChecks className="h-4 w-4 text-[#b9bdff]" />
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {visual.rows.map((row, idx) => (
+                      <div
+                        key={row.name}
+                        className="flex items-center justify-between rounded-xl bg-white/[.05] px-3 py-2.5"
+                      >
+                        <span className="text-xs font-bold">{row.name}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${
+                            idx === 1 ? "bg-[#10B981]/20 text-[#38ef7d]" : "bg-[#4046B5]/30 text-[#c6c8ff]"
+                          }`}
+                        >
+                          {row.state}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-dashed border-white/15 px-3 py-2.5 text-xs text-white/70">
+                  <FolderKanban className="h-4 w-4 text-[#aeb2ff]" />
+                  <span>{visual.footer}</span>
+                </div>
+              </div>
+
+              <div className="mof-stamp absolute -bottom-3 -left-3 bg-white px-4 py-2 text-[#07081A] shadow-xl">
+                <p className="text-[10px] font-extrabold text-[#4046B5]">موفوتر 2026</p>
+                <p className="text-xs font-black">معتمد ضريبيًا</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-function PersonaDecisionSnapshot({ persona, onPricing }: { persona: Persona; onPricing: () => void }) {
-  const decision = sales.decision[persona];
-  return <section className="relative -mt-7 z-10 pb-6"><div className="container"><div className="overflow-hidden rounded-[1.8rem] border border-[#4046B5]/18 bg-[#0B0B22] p-5 text-white shadow-[0_28px_65px_-45px_#0B0B22] md:p-7"><div className="grid items-center gap-6 lg:grid-cols-[.9fr_1.7fr_auto]"><div><p className="text-[11px] font-bold tracking-[.16em] text-[#bfc3ff]">{decision.eyebrow}</p><h2 className="mt-2 text-xl font-extrabold leading-8">{decision.title}</h2></div><div className="grid gap-3 sm:grid-cols-3">{decision.items.map((item, index) => <div key={item.value} className="rounded-2xl border border-white/10 bg-white/[.055] p-4"><span className="text-[10px] font-bold text-[#bfc3ff]">0{index + 1} · {item.label}</span><p className="mt-2 text-sm font-extrabold">{item.value}</p><p className="mt-1 text-xs leading-6 text-white/60">{item.body}</p></div>)}</div><Button onClick={onPricing} className="h-12 rounded-xl bg-white px-5 text-[#4046B5] hover:bg-[#EDEEF9]">{decision.cta}<ArrowLeft className="mr-2 h-4 w-4"/></Button></div></div></div></section>;
+// ---------------------------------------------------------------------------
+// 5. Testimonials & Social Proof (آراء وقصص نجاح من مصر)
+// ---------------------------------------------------------------------------
+function TestimonialsSection() {
+  const testimonials = [
+    {
+      name: "أ. محمود عبد الهادي",
+      role: "مدير مكتب محاسبة ومراجع قانوني - القاهرة",
+      text: "بدل ما كنا بنقعد 3 أيام نقفل إقرارات الـ VAT لـ 35 عميل، موفوتر خلّانا نقفلهم في نص يوم بدون ولا غلطة واحدة في مطابقة البوابة.",
+      stat: "وفّر 70% من وقت المراجعة",
+      firm: "مكتب المحاسبون المتحدون",
+    },
+    {
+      name: "م. كريم الشناوي",
+      role: "المدير المالي لشركة توريدات تجارية - الإسكندرية",
+      text: "منظومة الإيصال والفاتورة الإلكترونية كانت كابوس بالنسبة لفروعنا، مع موفوتر والربط مع الكاشير ارتحنا تمامًا وكل فاتورة بتتسجل في وقتها.",
+      stat: "إصدار 1,200+ فاتورة شهرياً",
+      firm: "شركة النيل للتوريدات",
+    },
+    {
+      name: "أ. سارة الجمل",
+      role: "محاسبة قانونية ومستشارة ضرائب - الجيزة",
+      text: "أفضل استثمار عملته لمكتبي.. باقة النخبة خلتني أتابع 100 ملف عميل بتكلفة أقل من 2.5 جنيه للملف شهريًا، قيمة لا تقارن بأي برنامج تاني.",
+      stat: "إدارة 100 ملف ضريبي",
+      firm: "مكتب الجمل للاستشارات",
+    },
+  ];
+
+  return (
+    <section className="mof-section bg-white">
+      <div className="container">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mof-eyebrow">قصص نجاح من السوق المصري</p>
+          <h2 className="mt-3 text-3xl font-extrabold text-[#07081A] md:text-5xl">
+            ثقة أكثر من 500+ مكتب محاسبة وشركة في مصر
+          </h2>
+          <p className="mt-4 text-base leading-8 text-[#5b5c72]">
+            شوف زمايلك في المهنة قالوا إيه عن تجربتهم مع موفوتر بعد ما ودّعوا الشغل اليدوي.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {testimonials.map((item, idx) => (
+            <article
+              key={idx}
+              className="relative flex flex-col justify-between rounded-[2rem] border border-[#4046B5]/12 bg-[#FBFBFF] p-7 shadow-sm transition hover:shadow-md"
+            >
+              <div>
+                <div className="flex items-center gap-1 text-[#F59E0B]">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-current" />
+                  ))}
+                </div>
+                <p className="mt-5 text-sm font-medium leading-7 text-[#33344e]">"{item.text}"</p>
+              </div>
+
+              <div className="mt-7 border-t border-[#4046B5]/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-extrabold text-[#07081A]">{item.name}</p>
+                    <p className="mt-0.5 text-xs text-[#5b5c72]">{item.role}</p>
+                  </div>
+                  <span className="mof-stamp px-2 py-0.5 text-[10px]">{item.stat}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
-function MofawtarFooter({ onQuickLink, onInteraction }: { onQuickLink: (id: string) => void; onInteraction: (type: string, value: string) => void }) {
+// ---------------------------------------------------------------------------
+// 6. Pricing Section (4 Tiers for Firms + 2 Tiers for Companies)
+// ---------------------------------------------------------------------------
+function PricingSection({
+  persona,
+  plans,
+  selectedPlanSku,
+  onSelectPlan,
+}: {
+  persona: Persona;
+  plans: Plan[];
+  selectedPlanSku: string;
+  onSelectPlan: (sku: string) => void;
+}) {
+  return (
+    <section id="pricing" className="mof-section bg-gradient-to-b from-[#F3F4FB] to-white">
+      <div className="container">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mof-eyebrow">{sales.pricing.eyebrow}</p>
+          <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#07081A] md:text-5xl">
+            {persona === "firm" ? sales.pricing.firmTitle : sales.pricing.companyTitle}
+          </h2>
+          <p className="mt-4 text-base leading-8 text-[#5b5c72]">
+            {sales.pricing.body}
+          </p>
+
+          {/* Annual Plan Assurance Badge */}
+          <div className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-[#10B981]/30 bg-white px-5 py-3 text-xs font-black text-[#065F46] shadow-sm">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] animate-pulse" />
+            اشتراك سنوي شامل (12 شهرًا) • يتضمن التحديثات الدورية والدعم الفني والربط مع منظومة الضرائب المصرية ETA
+          </div>
+        </div>
+
+        {/* Pricing Cards Grid */}
+        <div
+          className={`mt-12 grid gap-6 ${
+            persona === "firm"
+              ? "md:grid-cols-2 xl:grid-cols-4"
+              : "mx-auto max-w-4xl md:grid-cols-2"
+          }`}
+        >
+          {plans.map((plan) => {
+            const isFeatured = plan.featured;
+            const isSelected = selectedPlanSku === plan.sku;
+            const price = plan.annualPiastres;
+            const monthlyPerFile = ((plan.annualPiastres / 100) / plan.fileCount / 12).toFixed(1);
+
+            return (
+              <article
+                key={plan.sku}
+                className={`relative flex min-w-0 flex-col justify-between rounded-[2.2rem] border p-6 transition-all duration-300 hover:-translate-y-1.5 ${
+                  isFeatured
+                    ? "border-[#4046B5] bg-[#F7F7FF] shadow-[0_25px_60px_-30px_#4046B5] ring-2 ring-[#4046B5]/20"
+                    : "border-[#4046B5]/12 bg-white shadow-sm hover:shadow-md"
+                }`}
+              >
+                {plan.badge && (
+                  <div className="absolute -top-3.5 right-6 rounded-full bg-[#4046B5] px-3.5 py-1 text-xs font-black text-white shadow-md">
+                    {plan.badge}
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs font-extrabold text-[#4046B5]">{plan.files}</p>
+                  <h3 className="mt-2 text-2xl font-black text-[#07081A]">{plan.name}</h3>
+                  <p className="mt-2 min-h-12 text-xs leading-6 text-[#5a5b71]">{plan.description}</p>
+
+                  {/* Price Section */}
+                  <div className="mt-5 rounded-2xl bg-[#ECECF7]/60 p-4 text-center">
+                    <p className="font-[Inter] text-3xl font-black text-[#07081A]" dir="ltr">
+                      {formatEgp(price)}
+                    </p>
+                    <p className="mt-1 text-[11px] font-bold text-[#64657a]">
+                      اشتراك سنوي (قبل ضريبة 14% VAT)
+                    </p>
+
+                    {persona === "firm" && (
+                      <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-[#4046B5] px-3 py-1 font-[Inter] text-xs font-black text-white">
+                        <Sparkles className="h-3 w-3" />
+                        ما يعادل {monthlyPerFile} ج.م / ملف / شهر
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Capacity Info */}
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="rounded-xl border border-[#4046B5]/10 bg-white p-2.5">
+                      <p className="text-[10px] text-[#62647d]">سعة الملفات</p>
+                      <p className="mt-0.5 font-bold text-[#4046B5]">{plan.files}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#4046B5]/10 bg-white p-2.5">
+                      <p className="text-[10px] text-[#62647d]">فريق العمل</p>
+                      <p className="mt-0.5 font-bold text-[#4046B5]">{plan.users}</p>
+                    </div>
+                  </div>
+
+                  {/* Decision Cue */}
+                  <div className="mt-4 rounded-xl border border-dashed border-[#4046B5]/25 bg-white p-3 text-xs leading-5 text-[#4046B5]">
+                    <span className="font-extrabold">تناسبك لو: </span>
+                    {plan.decisionCue}
+                  </div>
+
+                  {/* Features List */}
+                  <ul className="mt-5 space-y-2.5 border-t border-[#4046B5]/10 pt-4 text-xs font-bold">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 leading-5 text-[#33344e]">
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#10B981]" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Button
+                  onClick={() => {
+                    onSelectPlan(plan.sku);
+                    scrollToId("upsell");
+                  }}
+                  className={`mt-7 h-12 w-full rounded-xl font-extrabold text-sm transition ${
+                    isSelected
+                      ? "bg-[#10B981] text-white hover:bg-[#059669]"
+                      : isFeatured
+                      ? "bg-[#4046B5] text-white hover:bg-[#343aa0]"
+                      : "bg-[#07081A] text-white hover:bg-[#262642]"
+                  }`}
+                >
+                  {isSelected ? "تم اختيار هذه الباقة ✓" : sales.pricing.select}
+                </Button>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Footer
+// ---------------------------------------------------------------------------
+function MofawtarFooter({
+  onQuickLink,
+  onInteraction,
+}: {
+  onQuickLink: (id: string) => void;
+  onInteraction: (type: string, value: string) => void;
+}) {
   const footer = layout.footer;
-  return <footer id="contact" className="relative overflow-hidden bg-[#10124A] text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(105,113,245,.4),transparent_28%),radial-gradient(circle_at_84%_92%,rgba(68,75,193,.4),transparent_30%)]"/><div className="container relative py-14 md:py-18"><div className="grid gap-10 border-b border-white/12 pb-12 lg:grid-cols-[1.4fr_.75fr_.9fr_.9fr]"><div><div className="inline-flex rounded-xl bg-white p-2"><img src="/manus-storage/mofawtar-wordmark_74721d27.png" alt="مفوتر" className="h-9 w-auto"/></div><p className="mt-5 max-w-sm text-sm leading-8 text-white/75">{footer.description}</p><div className="mt-7 rounded-2xl border border-white/10 bg-white/[.06] p-4"><div className="flex items-center gap-2 text-sm font-extrabold"><Building2 className="h-4 w-4 text-[#c8cbff]"/>{footer.issuer}</div><p className="mt-4 flex items-start gap-2 text-xs leading-6 text-white/70"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#c8cbff]"/><span><strong className="block text-white">{footer.locationTitle}</strong>{footer.address}</span></p></div></div><div><h3 className="text-sm font-extrabold">{footer.quickTitle}</h3><ul className="mt-5 space-y-3">{footer.quickLinks.map(link => <li key={link.id}>{link.id === "articles" ? <span className="text-sm text-white/55">{link.label}</span> : <button onClick={() => onQuickLink(link.id)} className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white"><ArrowLeft className="h-3.5 w-3.5 text-[#bfc3ff] transition-transform group-hover:-translate-x-1"/>{link.label}</button>}</li>)}</ul></div><div><h3 className="text-sm font-extrabold">{footer.socialTitle}</h3><ul className="mt-5 space-y-3">{footer.social.map(item => <li key={item.label}><a href={item.url} target="_blank" rel="noreferrer" onClick={() => onInteraction("social", item.label)} className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white"><Globe2 className="h-4 w-4 text-[#bfc3ff]"/><span dir="ltr">{item.label}</span></a></li>)}</ul></div><div><h3 className="text-sm font-extrabold">{footer.contactTitle}</h3><ul className="mt-5 space-y-3">{footer.contacts.map(item => <li key={item.label}><a href={item.url} onClick={() => onInteraction("contact", item.label)} className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white">{item.kind === "email" ? <Mail className="h-4 w-4 text-[#bfc3ff]"/> : <Phone className="h-4 w-4 text-[#bfc3ff]"/>}<span dir="ltr">{item.label}</span></a></li>)}</ul></div></div><div className="flex flex-col gap-4 pt-7 text-xs text-white/60 md:flex-row md:items-center md:justify-between"><p>{footer.copyright}</p><div className="flex flex-wrap items-center gap-3">{footer.legal.map((item, index) => <span key={item} className="flex items-center gap-3"><span className="font-bold text-white/80">{item}</span>{index < footer.legal.length - 1 && <span className="h-3 w-px bg-white/30"/>}</span>)}<a href="/dashboard" onClick={() => onInteraction("dashboard", "dashboard")} className="font-bold text-[#d7d9ff] hover:text-white">لوحة المؤشرات</a></div></div></div></footer>;
+  return (
+    <footer id="contact" className="relative overflow-hidden bg-[#07081A] text-white">
+      <div className="container relative py-14 md:py-20">
+        <div className="grid gap-10 border-b border-white/12 pb-12 lg:grid-cols-[1.4fr_.75fr_.9fr_.9fr]">
+          <div>
+            <div className="inline-flex rounded-xl bg-white p-2">
+              <img src="/brand/mofawtar-badge-logo.png" alt="مفوتر" className="h-9 w-auto" />
+            </div>
+            <p className="mt-5 max-w-sm text-sm leading-8 text-white/75">{footer.description}</p>
+            <div className="mt-7 rounded-2xl border border-white/10 bg-white/[.06] p-4">
+              <div className="flex items-center gap-2 text-sm font-extrabold">
+                <Building2 className="h-4 w-4 text-[#c8cbff]" />
+                {footer.issuer}
+              </div>
+              <p className="mt-4 flex items-start gap-2 text-xs leading-6 text-white/70">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#c8cbff]" />
+                <span>
+                  <strong className="block text-white">{footer.locationTitle}</strong>
+                  {footer.address}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-extrabold text-[#c8cbff]">{footer.quickTitle}</h3>
+            <ul className="mt-5 space-y-3">
+              {footer.quickLinks.map((link) => (
+                <li key={link.id}>
+                  {link.id === "articles" ? (
+                    <span className="text-sm text-white/55">{link.label}</span>
+                  ) : (
+                    <button
+                      onClick={() => onQuickLink(link.id)}
+                      className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5 text-[#bfc3ff] transition-transform group-hover:-translate-x-1" />
+                      {link.label}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-extrabold text-[#c8cbff]">{footer.socialTitle}</h3>
+            <ul className="mt-5 space-y-3">
+              {footer.social.map((item) => (
+                <li key={item.label}>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => onInteraction("social", item.label)}
+                    className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white"
+                  >
+                    <Globe2 className="h-4 w-4 text-[#bfc3ff]" />
+                    <span dir="ltr">{item.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-extrabold text-[#c8cbff]">{footer.contactTitle}</h3>
+            <ul className="mt-5 space-y-3">
+              {footer.contacts.map((item) => (
+                <li key={item.label}>
+                  <a
+                    href={item.url}
+                    onClick={() => onInteraction("contact", item.label)}
+                    className="group flex items-center gap-2 text-sm text-white/75 transition hover:text-white"
+                  >
+                    {item.kind === "email" ? (
+                      <Mail className="h-4 w-4 text-[#bfc3ff]" />
+                    ) : (
+                      <Phone className="h-4 w-4 text-[#bfc3ff]" />
+                    )}
+                    <span dir="ltr">{item.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 pt-7 text-xs text-white/60 md:flex-row md:items-center md:justify-between">
+          <p>{footer.copyright}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {footer.legal.map((item, index) => (
+              <span key={item} className="flex items-center gap-3">
+                <span className="font-bold text-white/80">{item}</span>
+                {index < footer.legal.length - 1 && <span className="h-3 w-px bg-white/30" />}
+              </span>
+            ))}
+            <a
+              href="/dashboard"
+              onClick={() => onInteraction("dashboard", "dashboard")}
+              className="font-bold text-[#d7d9ff] hover:text-white"
+            >
+              لوحة المؤشرات
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
 }
 
+// ---------------------------------------------------------------------------
+// 8. Main Home Component
+// ---------------------------------------------------------------------------
 export default function Home() {
   const [, setLocation] = useLocation();
   const track = usePocTracking();
-  const trackRef = useRef(track); trackRef.current = track;
+  const trackRef = useRef(track);
+  trackRef.current = track;
+
   const [persona, setPersona] = useState<Persona>("firm");
   const [gateOpen, setGateOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -74,12 +1024,14 @@ export default function Home() {
   const [leadMagnetEmail, setLeadMagnetEmail] = useState("");
   const [leadMagnetPhone, setLeadMagnetPhone] = useState("");
   const [leadMagnetError, setLeadMagnetError] = useState("");
+  const [faqSearch, setFaqSearch] = useState("");
+
   const demoSectionRef = useRef<HTMLElement>(null);
   const capabilitiesSectionRef = useRef<HTMLElement>(null);
   const leadMagnetMutation = trpc.poc.createLead.useMutation();
+
   const plans = useMemo(() => getPlansForPersona(persona), [persona]);
-  const selectedPlan = plans.find(plan => plan.sku === selectedPlanSku) ?? plans[0];
-  const personaCopy = sales[persona];
+  const selectedPlan = plans.find((plan) => plan.sku === selectedPlanSku) ?? plans[0];
   const layoutCopy = layout[persona];
   const operatingCopy = layout.operating[persona];
   const activeOperatingItem = operatingCopy.items[activeOperating] ?? operatingCopy.items[0];
@@ -89,122 +1041,918 @@ export default function Home() {
     const queryPersona = new URLSearchParams(window.location.search).get("p") as Persona | null;
     const savedPersona = localStorage.getItem("mof_persona") as Persona | null;
     const resolved = queryPersona === "firm" || queryPersona === "company" ? queryPersona : savedPersona;
-    if (resolved) { setPersona(resolved); setSelectedPlanSku(getPlansForPersona(resolved).find(plan => plan.featured)?.sku ?? getPlansForPersona(resolved)[0].sku); trackRef.current("persona_resolved", { persona: resolved, uiContext: queryPersona ? "utm" : "storage" }); }
-    else { setGateOpen(true); trackRef.current("persona_gate_shown", { uiContext: "first_visit" }); }
-    setConsent(readConsent()); setInitialized(true); trackRef.current("page_view", { persona: resolved ?? "firm", uiContext: "landing" });
+    if (resolved) {
+      setPersona(resolved);
+      setSelectedPlanSku(getPlansForPersona(resolved).find((p) => p.featured)?.sku ?? getPlansForPersona(resolved)[0].sku);
+      trackRef.current("persona_resolved", { persona: resolved, uiContext: queryPersona ? "utm" : "storage" });
+    } else {
+      setGateOpen(true);
+      trackRef.current("persona_gate_shown", { uiContext: "first_visit" });
+    }
+    setConsent(readConsent());
+    setInitialized(true);
+    trackRef.current("page_view", { persona: resolved ?? "firm", uiContext: "landing" });
   }, []);
 
-  useEffect(() => { const interval = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(interval); }, []);
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const node = demoSectionRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     let wasTracked = false;
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting && !wasTracked) { wasTracked = true; trackRef.current("demo_section_viewed", { persona, uiContext: "demo_section" }); observer.disconnect(); }
-    }, { threshold: .35 });
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !wasTracked) {
+        wasTracked = true;
+        trackRef.current("demo_section_viewed", { persona, uiContext: "demo_section" });
+        observer.disconnect();
+      }
+    }, { threshold: 0.35 });
     observer.observe(node);
     return () => observer.disconnect();
   }, [persona]);
+
   useEffect(() => {
     const node = capabilitiesSectionRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     let wasTracked = false;
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting && !wasTracked) { wasTracked = true; trackRef.current("capabilities_section_viewed", { persona, uiContext: "capabilities_section" }); observer.disconnect(); }
-    }, { threshold: .35 });
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !wasTracked) {
+        wasTracked = true;
+        trackRef.current("capabilities_section_viewed", { persona, uiContext: "capabilities_section" });
+        observer.disconnect();
+      }
+    }, { threshold: 0.35 });
     observer.observe(node);
     return () => observer.disconnect();
   }, [persona]);
+
   useEffect(() => {
     if (!initialized || gateOpen || leadMagnetDismissed || leadMagnetDelivered) return;
-    const timeout = window.setTimeout(() => { setLeadMagnetOpen(true); trackRef.current("lead_magnet_shown", { persona, uiContext: "payroll_calculator_popup" }); }, 10000);
+    const timeout = window.setTimeout(() => {
+      setLeadMagnetOpen(true);
+      trackRef.current("lead_magnet_shown", { persona, uiContext: "payroll_calculator_popup" });
+    }, 12000);
     return () => window.clearTimeout(timeout);
   }, [gateOpen, initialized, leadMagnetDelivered, leadMagnetDismissed, persona]);
+
   useEffect(() => {
     if (!initialized || !consent) return;
     const onExit = (event: MouseEvent) => {
-      const eligible = window.scrollY > window.innerHeight * .65 || Date.now() - Number(sessionStorage.getItem("mof_visit_started") ?? Date.now()) > 40000;
+      const eligible = window.scrollY > window.innerHeight * 0.5 || Date.now() - Number(sessionStorage.getItem("mof_visit_started") ?? Date.now()) > 30000;
       if (event.clientY < 4 && eligible && !sessionStorage.getItem("mof_conversion_blocked") && !localStorage.getItem("mof_exit_seen") && !gateOpen) {
-        localStorage.setItem("mof_exit_seen", "1"); setExitOpen(true); trackRef.current("exit_intent_shown", { persona, uiContext: "exit_desktop" });
+        localStorage.setItem("mof_exit_seen", "1");
+        setExitOpen(true);
+        trackRef.current("exit_intent_shown", { persona, uiContext: "exit_desktop" });
       }
     };
     if (!sessionStorage.getItem("mof_visit_started")) sessionStorage.setItem("mof_visit_started", String(Date.now()));
-    document.addEventListener("mouseout", onExit); return () => document.removeEventListener("mouseout", onExit);
+    document.addEventListener("mouseout", onExit);
+    return () => document.removeEventListener("mouseout", onExit);
   }, [consent, gateOpen, initialized, persona]);
 
   const choosePersona = (value: Persona, context: string) => {
-    const first = getPlansForPersona(value).find(plan => plan.featured) ?? getPlansForPersona(value)[0];
-    localStorage.setItem("mof_persona", value); setPersona(value); setSelectedPlanSku(first.sku); setSelectedAddons([]); setActiveOperating(0); setGateOpen(false);
+    const first = getPlansForPersona(value).find((p) => p.featured) ?? getPlansForPersona(value)[0];
+    localStorage.setItem("mof_persona", value);
+    setPersona(value);
+    setSelectedPlanSku(first.sku);
+    setSelectedAddons([]);
+    setActiveOperating(0);
+    setGateOpen(false);
     track("persona_selected", { persona: value, uiContext: context });
   };
-  const selectPlan = (sku: string) => { setSelectedPlanSku(sku); setSelectedAddons([]); track("plan_selected", { persona, uiContext: "pricing_card", properties: { plan_sku: sku } }); };
-  const toggleAddon = (sku: string) => { setSelectedAddons(value => value.includes(sku) ? value.filter(item => item !== sku) : [...value, sku]); track("addon_toggled", { persona, uiContext: "upsell", properties: { addon_sku: sku } }); };
-  const continueToCheckout = () => { if (!selectedPlan) return; sessionStorage.setItem("mof_selected_plan", selectedPlan.sku); sessionStorage.setItem("mof_selected_addons", JSON.stringify(selectedAddons)); track("checkout_started", { persona, uiContext: "upsell_cta", properties: { plan_sku: selectedPlan.sku, addons: selectedAddons } }); setLocation(`/checkout?plan=${selectedPlan.sku}&persona=${persona}&addons=${selectedAddons.join(",")}`); };
-  const whatsapp = (placement: string) => { sessionStorage.setItem("mof_conversion_blocked", "whatsapp"); track("whatsapp_cta_clicked", { persona, uiContext: placement }); window.open(WHATSAPP_URL, "_blank", "noopener,noreferrer"); };
-  const handleCapabilityAction = (capabilityId: string, status: string) => { track("capability_cta_clicked", { persona, uiContext: "capabilities_section", properties: { capability_id: capabilityId, status } }); if (status === "coming") whatsapp(`capability_waitlist_${capabilityId}`); else scrollToId(status === "special" ? "pricing" : "pricing"); };
-  const handleIssuanceDocumentClick = (documentId: string) => track("issuance_document_clicked", { persona, uiContext: "issuance_section", properties: { document_id: documentId } });
-  const handleOnboardingCta = () => { track("onboarding_pricing_clicked", { persona, uiContext: "onboarding_section" }); scrollToId("pricing"); };
-  const handleHeroSecondary = () => { if (persona === "firm") { track("hero_demo_clicked", { persona, uiContext: "hero_secondary" }); scrollToId("demo"); } else { track("hero_calculator_clicked", { persona, uiContext: "hero_secondary" }); setLeadMagnetOpen(true); } };
-  const handleFooterQuickLink = (id: string) => { track("footer_quick_link_clicked", { persona, uiContext: "footer", properties: { link_id: id } }); if (id === "home") window.scrollTo({ top: 0, behavior: "smooth" }); else if (id === "pricing") scrollToId("pricing"); else if (id === "contact") whatsapp("footer_quick_contact"); };
-  const handleFooterInteraction = (type: string, value: string) => track("footer_interaction", { persona, uiContext: "footer", properties: { type, value } });
-  const closeLeadMagnet = () => { setLeadMagnetOpen(false); setLeadMagnetDismissed(true); track("lead_magnet_dismissed", { persona, uiContext: "payroll_calculator_popup", properties: { delivered: leadMagnetDelivered } }); };
+
+  const selectPlan = (sku: string) => {
+    setSelectedPlanSku(sku);
+    setSelectedAddons([]);
+    track("plan_selected", { persona, uiContext: "pricing_card", properties: { plan_sku: sku } });
+  };
+
+  const toggleAddon = (sku: string) => {
+    setSelectedAddons((val) => (val.includes(sku) ? val.filter((i) => i !== sku) : [...val, sku]));
+    track("addon_toggled", { persona, uiContext: "upsell", properties: { addon_sku: sku } });
+  };
+
+  const continueToCheckout = () => {
+    if (!selectedPlan) return;
+    sessionStorage.setItem("mof_selected_plan", selectedPlan.sku);
+    sessionStorage.setItem("mof_selected_addons", JSON.stringify(selectedAddons));
+    track("checkout_started", {
+      persona,
+      uiContext: "upsell_cta",
+      properties: { plan_sku: selectedPlan.sku, addons: selectedAddons, billingCycle: "annual" },
+    });
+    setLocation(`/checkout?plan=${selectedPlan.sku}&persona=${persona}&addons=${selectedAddons.join(",")}&cycle=annual`);
+  };
+
+  const whatsapp = (placement: string) => {
+    sessionStorage.setItem("mof_conversion_blocked", "whatsapp");
+    track("whatsapp_cta_clicked", { persona, uiContext: placement });
+    window.open(WHATSAPP_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCapabilityAction = (capabilityId: string, status: string) => {
+    track("capability_cta_clicked", {
+      persona,
+      uiContext: "capabilities_section",
+      properties: { capability_id: capabilityId, status },
+    });
+    if (status === "coming") whatsapp(`capability_waitlist_${capabilityId}`);
+    else scrollToId("pricing");
+  };
+
+  const handleIssuanceDocumentClick = (documentId: string) =>
+    track("issuance_document_clicked", { persona, uiContext: "issuance_section", properties: { document_id: documentId } });
+
+  const handleHeroSecondary = () => {
+    if (persona === "firm") {
+      track("hero_demo_clicked", { persona, uiContext: "hero_secondary" });
+      scrollToId("tax-simulator");
+    } else {
+      track("hero_calculator_clicked", { persona, uiContext: "hero_secondary" });
+      scrollToId("tax-simulator");
+    }
+  };
+
+  const handleFooterQuickLink = (id: string) => {
+    track("footer_quick_link_clicked", { persona, uiContext: "footer", properties: { link_id: id } });
+    if (id === "home") window.scrollTo({ top: 0, behavior: "smooth" });
+    else if (id === "pricing") scrollToId("pricing");
+    else if (id === "contact") whatsapp("footer_quick_contact");
+  };
+
+  const handleFooterInteraction = (type: string, value: string) =>
+    track("footer_interaction", { persona, uiContext: "footer", properties: { type, value } });
+
+  const closeLeadMagnet = () => {
+    setLeadMagnetOpen(false);
+    setLeadMagnetDismissed(true);
+    track("lead_magnet_dismissed", {
+      persona,
+      uiContext: "payroll_calculator_popup",
+      properties: { delivered: leadMagnetDelivered },
+    });
+  };
+
   const submitLeadMagnet = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const phone = leadMagnetPhone.trim();
-    if (!/^\+?[0-9\s-]{8,20}$/.test(phone)) { setLeadMagnetError("يرجى إدخال رقم هاتف صحيح."); return; }
+    if (!/^\+?[0-9\s-]{8,20}$/.test(phone)) {
+      setLeadMagnetError("يرجى إدخال رقم هاتف مصري صحيح.");
+      return;
+    }
     setLeadMagnetError("");
-    leadMagnetMutation.mutate({ name: "مهتم بحاسبة ضريبة المرتبات والتأمينات", email: leadMagnetEmail.trim(), phone, visitorId: getPocContext().visitorId, source: "payroll_tax_calculator_popup", marketingOptIn: false }, { onSuccess: () => { setLeadMagnetDelivered(true); track("lead_magnet_submitted", { persona, uiContext: "payroll_calculator_popup" }); }, onError: () => setLeadMagnetError("تعذر تسجيل البيانات الآن. حاول مرة أخرى.") });
+    leadMagnetMutation.mutate(
+      {
+        name: "مهتم بحاسبة ضريبة المرتبات والتأمينات",
+        email: leadMagnetEmail.trim(),
+        phone,
+        visitorId: getPocContext().visitorId,
+        source: "payroll_tax_calculator_popup",
+        marketingOptIn: false,
+      },
+      {
+        onSuccess: () => {
+          setLeadMagnetDelivered(true);
+          track("lead_magnet_submitted", { persona, uiContext: "payroll_calculator_popup" });
+        },
+        onError: () => setLeadMagnetError("تعذر تسجيل البيانات الآن. يرجى المحاولة مرة أخرى."),
+      }
+    );
   };
-  const saveConsent = (value: Consent) => { localStorage.setItem("mof_consent", JSON.stringify(value)); setConsent(value); track("consent_updated", { persona, uiContext: "cookie" }); };
-  const submitGuide = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLeadSent(true); sessionStorage.setItem("mof_conversion_blocked", "lead"); track("lead_submitted", { persona, uiContext: "guide" }); };
+
+  const saveConsent = (value: Consent) => {
+    localStorage.setItem("mof_consent", JSON.stringify(value));
+    setConsent(value);
+    track("consent_updated", { persona, uiContext: "cookie" });
+  };
+
+  const submitGuide = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLeadSent(true);
+    sessionStorage.setItem("mof_conversion_blocked", "lead");
+    track("lead_submitted", { persona, uiContext: "guide" });
+  };
+
+  const filteredFaq = useMemo(() => {
+    if (!faqSearch.trim()) return layout.faq.items;
+    const term = faqSearch.toLowerCase();
+    return layout.faq.items.filter(
+      (item) => item.question.toLowerCase().includes(term) || item.answer.toLowerCase().includes(term)
+    );
+  }, [faqSearch]);
+
   const activeCampaign = isCampaignActive(new Date(now));
 
-  return <div className="min-h-screen overflow-x-hidden bg-[#fbfbff] text-[#090A20]">
-    {activeCampaign && !offerDismissed && <div className="relative z-50 border-b border-[#777ce0]/20 bg-[#0B0B22] text-white"><div className="container flex min-h-11 flex-wrap items-center justify-center gap-x-4 gap-y-1 py-2 text-center text-xs md:text-sm"><span className="font-bold text-[#d7d8ff]">{sales.promo.label}</span><span className="text-white/80">{sales.promo.title}</span><span dir="ltr" className="rounded-md bg-white/10 px-2 py-0.5 font-[Inter] text-[11px] tabular-nums">{timeLeft(now)}</span><button onClick={() => { track("promo_banner_clicked", { persona, uiContext: "top_banner" }); scrollToId("pricing"); }} className="font-extrabold text-[#c5c8ff] hover:text-white">{sales.promo.cta}</button><button aria-label="إغلاق العرض" onClick={() => { setOfferDismissed(true); track("promo_banner_dismissed", { persona, uiContext: "top_banner" }); }}><X className="h-4 w-4"/></button></div></div>}
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-[#FBFBFF] text-[#07081A]">
+      {/* 1. Urgent Promo Bar */}
+      {activeCampaign && !offerDismissed && (
+        <div className="relative z-50 border-b border-[#777ce0]/20 bg-[#07081A] text-white">
+          <div className="container flex min-h-11 flex-wrap items-center justify-center gap-x-4 gap-y-1 py-2 text-center text-xs md:text-sm">
+            <span className="inline-flex items-center gap-1 font-extrabold text-[#d7d8ff]">
+              <BadgePercent className="h-4 w-4 text-[#F59E0B]" />
+              {sales.promo.label}:
+            </span>
+            <span className="font-medium text-white/90">{sales.promo.title}</span>
+            <span dir="ltr" className="rounded-md bg-white/10 px-2 py-0.5 font-[Inter] text-[11px] font-bold tabular-nums">
+              {timeLeft(now)}
+            </span>
+            <button
+              onClick={() => {
+                track("promo_banner_clicked", { persona, uiContext: "top_banner" });
+                scrollToId("pricing");
+              }}
+              className="inline-flex items-center gap-1 font-black text-[#c5c8ff] underline underline-offset-4 hover:text-white"
+            >
+              {sales.promo.cta}
+              <ArrowLeft className="h-3 w-3" />
+            </button>
+            <button
+              aria-label="إغلاق العرض"
+              onClick={() => {
+                setOfferDismissed(true);
+                track("promo_banner_dismissed", { persona, uiContext: "top_banner" });
+              }}
+              className="rounded-full p-0.5 text-white/60 hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
-    <header className="sticky top-0 z-40 border-b border-[#4046B5]/10 bg-[#fbfbff]/95 backdrop-blur-xl"><div className="container flex h-20 items-center justify-between gap-4"><button onClick={() => setGateOpen(true)} className="group flex items-center gap-3 text-right"><img src="/manus-storage/mofawtar-wordmark_74721d27.png" alt="مفوتر" className="h-10 w-auto"/><span className="hidden border-r border-[#4046B5]/15 pr-3 text-xs font-bold text-[#585972] sm:block">{persona === "firm" ? "مسار المكتب" : "مسار المحاسب والشركة"}<span className="mt-0.5 block text-[#4046B5] group-hover:underline">تغيير المسار</span></span></button><nav className="hidden items-center gap-7 text-sm font-bold lg:flex"><button onClick={() => scrollToId("how-it-works")} className="hover:text-[#4046B5]">كيف يناسب شغلك؟</button><button onClick={() => scrollToId("pricing")} className="hover:text-[#4046B5]">الباقات</button><button onClick={() => scrollToId("upsell")} className="hover:text-[#4046B5]">الإضافات</button><span className="rounded-full bg-[#EDEEF9] px-3 py-1 text-xs text-[#4046B5]">14 يومًا وفق الشروط</span></nav><Button onClick={() => scrollToId("pricing")} className="rounded-xl bg-[#4046B5] px-5 font-bold shadow-[0_12px_22px_-15px_#4046B5] hover:bg-[#343aa0]">اختَر باقتك<ArrowLeft className="mr-2 h-4 w-4"/></Button></div></header>
+      {/* 2. Main Header */}
+      <header className="sticky top-0 z-40 border-b border-[#4046B5]/10 bg-white/90 backdrop-blur-xl">
+        <div className="container flex h-20 items-center justify-between gap-4">
+          <button onClick={() => setGateOpen(true)} className="group flex items-center gap-3 text-right">
+            <div className="inline-flex rounded-xl p-1 transition hover:opacity-90">
+              <img src="/brand/mofawtar-badge-logo.png" alt="مفوتر" className="h-10 w-auto" />
+            </div>
+            <span className="hidden border-r border-[#4046B5]/15 pr-3 text-xs font-bold text-[#585972] sm:block">
+              {persona === "firm" ? "مسار مكاتب المحاسبة" : "مسار الشركات والمحاسبين"}
+              <span className="mt-0.5 block font-extrabold text-[#4046B5] group-hover:underline">تبديل المسار</span>
+            </span>
+          </button>
 
-    <main>
-      <PersonaHero persona={persona} onPrimary={() => { track("hero_cta_clicked", { persona, uiContext: "hero_primary" }); scrollToId("pricing"); }} onSecondary={handleHeroSecondary}/>
-      <PersonaDecisionSnapshot persona={persona} onPricing={() => { track("decision_snapshot_clicked", { persona, uiContext: "hero_decision_snapshot" }); scrollToId("pricing"); }}/>
-      <ProductCapabilities sectionRef={capabilitiesSectionRef} onAction={handleCapabilityAction}/>
-      <IssuanceFollowUp onAction={handleCapabilityAction} onDocumentClick={handleIssuanceDocumentClick}/>
-      <OnboardingJourney onCta={handleOnboardingCta}/>
+          <nav className="hidden items-center gap-7 text-sm font-extrabold lg:flex">
+            <button onClick={() => scrollToId("tax-simulator")} className="transition hover:text-[#4046B5]">
+              حاسبة التوفير
+            </button>
+            <button onClick={() => scrollToId("capabilities")} className="transition hover:text-[#4046B5]">
+              قدرات المنظومة
+            </button>
+            <button onClick={() => scrollToId("pricing")} className="transition hover:text-[#4046B5]">
+              الباقات والأسعار
+            </button>
+            <button onClick={() => scrollToId("upsell")} className="transition hover:text-[#4046B5]">
+              الإضافات
+            </button>
+            <button onClick={() => scrollToId("faq")} className="transition hover:text-[#4046B5]">
+              الأسئلة الشائعة
+            </button>
+          </nav>
 
-      <section id="how-it-works" className="border-y border-[#4046B5]/10 bg-white"><div className="container py-12"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layout.journey.eyebrow}</p><h2 className="mt-3 text-3xl font-extrabold md:text-5xl">{layout.journey.title}</h2></div><div className="mt-10 grid gap-5 md:grid-cols-3">{layout.journey.items.map(item => <article key={item.number} className="relative rounded-2xl border border-[#4046B5]/10 bg-[#fbfbff] p-6"><span className="font-[Inter] text-4xl font-extrabold text-[#4046B5]/20">{item.number}</span><h3 className="mt-4 text-xl font-extrabold">{item.title}</h3><p className="mt-3 text-sm leading-7 text-[#5b5c72]">{item.body}</p></article>)}</div></div></section>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => scrollToId("pricing")}
+              className="h-11 rounded-xl bg-[#4046B5] px-6 text-sm font-extrabold text-white shadow-md shadow-[#4046B5]/25 transition-all hover:bg-[#343aa0] hover:scale-105 active:scale-95"
+            >
+              اختَر باقتك
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
 
-      <section className="mof-section bg-[#EDEEF9]/55"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layoutCopy.pain.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{layoutCopy.pain.title}</h2><p className="mt-5 leading-8 text-[#5b5c72]">{layoutCopy.pain.body}</p></div><div className={`mt-11 grid gap-5 ${persona === "firm" ? "md:grid-cols-2 xl:grid-cols-4" : "lg:grid-cols-3"}`}>{layoutCopy.pain.items.map((item, index) => <article key={item.title} className="rounded-[1.7rem] border border-[#4046B5]/10 bg-white p-6 shadow-[0_18px_45px_-40px_#4046B5]"><span className="inline-flex rounded-full bg-[#EDEEF9] px-3 py-1 text-[11px] font-bold text-[#4046B5]">{item.label}</span><div className="mt-6 flex items-start justify-between gap-4"><h3 className="text-xl font-extrabold leading-8">{item.title}</h3><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#090A20] text-white">{index === 0 ? <Layers3 className="h-5 w-5"/> : index === 1 ? <FileDown className="h-5 w-5"/> : index === 2 ? <ListChecks className="h-5 w-5"/> : <UsersRound className="h-5 w-5"/>}</span></div><p className="mt-4 text-sm leading-7 text-[#5b5c72]">{item.body}</p></article>)}</div><div className="mt-8 grid gap-6 overflow-hidden rounded-[2rem] bg-[#090A20] p-7 text-white lg:grid-cols-[.9fr_1.1fr] lg:p-9"><div><p className="text-xs font-bold tracking-[.16em] text-[#bfc3ff]">{layoutCopy.value.title}</p><div className="mt-7 space-y-4">{layoutCopy.value.items.map((item, index) => <div key={item} className="flex gap-4"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#4046B5] text-xs font-extrabold">0{index + 1}</span><p className="pt-1 text-sm font-bold leading-7 text-white/80">{item}</p></div>)}</div></div><div className="rounded-2xl border border-white/10 bg-white/[.045] p-5"><div className="flex items-center justify-between border-b border-white/10 pb-4"><span className="text-sm font-extrabold">خريطة قرار موفوتر</span><ShieldCheck className="h-5 w-5 text-[#bfc3ff]"/></div><div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white/[.06] p-4"><p className="text-[10px] text-white/50">ابدأ من</p><p className="mt-2 text-sm font-bold">السعة</p></div><div className="rounded-xl bg-[#4046B5] p-4"><p className="text-[10px] text-white/65">ثم</p><p className="mt-2 text-sm font-bold">الفريق</p></div><div className="rounded-xl bg-white/[.06] p-4"><p className="text-[10px] text-white/50">عند الحاجة</p><p className="mt-2 text-sm font-bold">الإضافة</p></div></div><div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-5 text-xs font-bold text-[#c7c9ff]"><Check className="h-4 w-4"/>تظهر النتيجة والضريبة قبل الدفع التجريبي</div></div></div></div></section>
+      {/* Main Content */}
+      <main>
+        {/* Hero */}
+        <PersonaHero
+          persona={persona}
+          onSwitchPersona={(p) => choosePersona(p, "hero_toggle")}
+          onPrimary={() => {
+            track("hero_cta_clicked", { persona, uiContext: "hero_primary" });
+            scrollToId("pricing");
+          }}
+          onSecondary={handleHeroSecondary}
+        />
 
-      <section className="mof-section bg-white"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layout.comparison.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{layout.comparison.title}</h2></div><div className="mt-10 overflow-hidden rounded-[1.75rem] border border-[#4046B5]/15 shadow-[0_20px_50px_-45px_#4046B5]"><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-right"><thead><tr className="bg-[#090A20] text-white"><th className="p-5 text-sm font-extrabold">نقطة القرار</th><th className="p-5 text-sm font-extrabold text-white/65">بدون وضوح</th><th className="p-5 text-sm font-extrabold text-[#d7d8ff]">مع رحلة مفوتر</th></tr></thead><tbody>{layout.comparison.rows.map((row, index) => <tr key={row.need} className={index % 2 ? "bg-[#fbfbff]" : "bg-white"}><td className="p-5 text-sm font-extrabold">{row.need}</td><td className="p-5 text-sm leading-7 text-[#696a80]">{row.ordinary}</td><td className="p-5 text-sm font-bold leading-7 text-[#4046B5]">{row.mof}</td></tr>)}</tbody></table></div></div></div></section>
+        {/* Interactive Tax & Invoicing Simulator */}
+        <TaxInvoicingSimulator
+          persona={persona}
+          onSelectPlan={(sku) => {
+            selectPlan(sku);
+            track("simulator_plan_selected", { persona, uiContext: "tax_simulator", properties: { sku } });
+          }}
+        />
 
-      <section id="operating" className="mof-section bg-[#0B0B22] text-white"><div className="container"><div className="grid items-center gap-10 lg:grid-cols-[.78fr_1.22fr]"><div><p className="mof-eyebrow text-[#c6c8ff]">{operatingCopy.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{operatingCopy.title}</h2><p className="mt-5 leading-8 text-white/68">{operatingCopy.body}</p><div className="mt-8 space-y-3">{operatingCopy.items.map((item, index) => <button key={item.id} onClick={() => { setActiveOperating(index); track("operating_scenario_selected", { persona, uiContext: "operating_section", properties: { scenario: item.id } }); }} className={`flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-right transition ${activeOperating === index ? "border-[#b8bcff] bg-[#4046B5]" : "border-white/10 bg-white/[.045] hover:bg-white/[.09]"}`}><span><span className="block text-sm font-extrabold">{item.label}</span><span className="mt-1 block text-xs text-white/60">{item.cue}</span></span><ArrowLeft className={`h-4 w-4 shrink-0 ${activeOperating === index ? "text-white" : "text-[#b8bcff]"}`}/></button>)}</div></div><div className="rounded-[2rem] border border-white/10 bg-white/[.045] p-4 shadow-2xl"><div className="rounded-[1.45rem] border border-white/10 bg-[#101132] p-5"><div className="flex items-center justify-between border-b border-white/10 pb-4"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#f3b750]"/><span className="h-2.5 w-2.5 rounded-full bg-[#6d72db]"/><span className="h-2.5 w-2.5 rounded-full bg-[#38c99b]"/></div><span className="mof-stamp bg-white px-2 py-1 text-[10px] font-extrabold">موفوتر — مسار العمل</span></div><div className="mt-7 grid gap-4 sm:grid-cols-[.72fr_1.28fr]"><div className="rounded-2xl bg-[#4046B5] p-5"><p className="text-[11px] font-bold text-white/60">الحالة المختارة</p><p className="mt-3 text-xl font-extrabold leading-8">{activeOperatingItem.label}</p><div className="mt-8 border-t border-white/20 pt-4"><p className="text-[10px] font-bold text-white/55">الخطوة التالية</p><p className="mt-2 text-sm font-bold">{activeOperatingItem.cue}</p></div></div><div className="rounded-2xl border border-white/10 bg-black/20 p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold text-[#c6c8ff]">كيف تنظم القرار؟</p><h3 className="mt-2 text-2xl font-extrabold leading-9">{activeOperatingItem.title}</h3></div><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-[#d7d8ff]">{activeOperating === 0 ? <FolderKanban className="h-5 w-5"/> : activeOperating === 1 ? <UsersRound className="h-5 w-5"/> : <Zap className="h-5 w-5"/>}</span></div><p className="mt-5 text-sm leading-8 text-white/68">{activeOperatingItem.body}</p><div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5"><div className="rounded-lg bg-white/[.055] p-3 text-center"><span className="block text-[10px] text-white/45">اختر</span><span className="mt-1 block text-xs font-bold">الباقة</span></div><div className="rounded-lg bg-white/[.055] p-3 text-center"><span className="block text-[10px] text-white/45">راجع</span><span className="mt-1 block text-xs font-bold">السعة</span></div><div className="rounded-lg bg-white/[.055] p-3 text-center"><span className="block text-[10px] text-white/45">أضف</span><span className="mt-1 block text-xs font-bold">عند الحاجة</span></div></div></div></div></div></div></div></div></section>
+        {/* Product Capabilities */}
+        <ProductCapabilities sectionRef={capabilitiesSectionRef} onAction={handleCapabilityAction} />
 
-      <section ref={demoSectionRef} id="demo" className="mof-section bg-[#EDEEF9]/60"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layout.demo.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{layout.demo.title}</h2><p className="mt-5 leading-8 text-[#5b5c72]">{layout.demo.body}</p></div><div className="relative mx-auto mt-10 max-w-5xl overflow-hidden rounded-[2rem] border-4 border-white bg-[#090A20] p-4 text-right shadow-[0_30px_70px_-40px_#11133d]"><div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_20%,rgba(84,91,218,.4),transparent_32%),linear-gradient(135deg,#090A20,#171a55)]"/><div className="relative grid gap-7 p-3 md:grid-cols-[1.1fr_.9fr] md:p-7"><div className="rounded-[1.4rem] border border-white/12 bg-black/20 p-5 text-white"><div className="flex items-center justify-between border-b border-white/10 pb-4"><span className="text-xs font-bold text-white/60">موفوتر — لقطات من المعاينة</span><span className="flex items-center gap-1 text-[10px] font-bold text-[#c8cbff]"><Volume2 className="h-3.5 w-3.5"/>{layout.demo.duration}</span></div><div className="mt-5 rounded-2xl border border-white/10 bg-[#11143b] p-5"><p className="text-[10px] font-bold tracking-[.16em] text-[#c9ccff]">{activeDemoItem.eyebrow}</p><div className="mt-3 flex items-start justify-between gap-4"><div><h3 className="text-xl font-extrabold leading-8">{activeDemoItem.title}</h3><p className="mt-3 text-xs leading-6 text-white/65">{activeDemoItem.body}</p></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#4046B5] text-xs font-extrabold">0{activeDemoTab + 1}</span></div><div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4"><div className="rounded-xl bg-white/[.06] p-3"><p className="text-[10px] text-white/45">{activeDemoItem.metric}</p><p className="mt-1 text-xs font-bold">{activeDemoItem.detail}</p></div><div className="rounded-xl bg-white/[.06] p-3"><p className="text-[10px] text-white/45">الخطوة التالية</p><p className="mt-1 text-xs font-bold">مراجعة منظمة</p></div></div></div></div><div className="flex flex-col justify-center text-center text-white"><span className="mof-stamp mx-auto inline-flex bg-white px-3 py-1 text-[10px] font-extrabold text-[#4046B5]">مشغل الفيديو التوضيحي</span><button aria-label="فتح المعاينة التوضيحية" onClick={() => { setDemoOpen(true); track("demo_preview_opened", { persona, uiContext: "demo_player", properties: { active_tab: activeDemoItem.id } }); }} className="mx-auto mt-7 grid h-20 w-20 place-items-center rounded-full bg-white text-[#4046B5] shadow-[0_0_0_14px_rgba(255,255,255,.12)] transition-transform hover:scale-110 active:scale-95"><Play className="mr-1 h-8 w-8 fill-current"/></button><p className="mt-7 text-xl font-extrabold">{layout.demo.play}</p><p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-white/65">{layout.demo.note}</p></div></div><div className="relative mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{layout.demo.tabs.map((item, index) => <button key={item.id} onClick={() => { setActiveDemoTab(index); track("demo_tab_clicked", { persona, uiContext: "demo_tabs", properties: { demo_tab: item.id } }); }} className={`rounded-xl border p-3 text-right transition active:scale-[.98] ${activeDemoTab === index ? "border-[#c5c8ff] bg-[#4046B5] text-white" : "border-white/10 bg-white/[.055] text-white/75 hover:bg-white/[.1]"}`}><span className="block text-[10px] font-bold opacity-60">0{index + 1}</span><span className="mt-1 block text-xs font-extrabold leading-5">{item.label}</span></button>)}</div></div><div className="mt-7 flex flex-col items-center justify-center gap-3 text-center"><Button onClick={() => { track("demo_booking_clicked", { persona, uiContext: "demo_section", properties: { active_tab: activeDemoItem.id } }); whatsapp("demo_booking"); }} className="h-12 rounded-xl bg-[#4046B5] px-6 font-bold hover:bg-[#343aa0]"><MessageCircle className="ml-2 h-4 w-4"/>{layout.demo.booking}</Button><p className="text-xs leading-6 text-[#65667c]">سنرتب وقتًا مناسبًا لعرض المنتج الحقيقي والإجابة عن أسئلة فريقك.</p></div></div></section>
+        {/* Issuance Follow-up */}
+        <IssuanceFollowUp onAction={handleCapabilityAction} onDocumentClick={handleIssuanceDocumentClick} />
 
-      <section id="pricing" className="mof-section"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{sales.pricing.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{persona === "firm" ? sales.pricing.firmTitle : sales.pricing.companyTitle}</h2><p className="mt-5 leading-8 text-[#5b5c72]">{sales.pricing.body}</p></div><div className={`mt-12 grid gap-5 ${persona === "firm" ? "md:grid-cols-2 xl:grid-cols-4" : "mx-auto max-w-4xl md:grid-cols-2"}`}>{plans.map(plan => <article key={plan.sku} className={`relative flex min-w-0 flex-col rounded-[2rem] border p-6 shadow-[0_20px_50px_-42px_#4046B5] transition-transform hover:-translate-y-1 ${plan.featured ? "border-[#4046B5] bg-[#F7F7FF] shadow-[0_26px_55px_-34px_#4046B5]" : "border-[#4046B5]/12 bg-white"}`}>
-        {plan.badge && <div className="absolute -top-3 right-5 rounded-full bg-[#4046B5] px-3 py-1 text-xs font-bold text-white">{plan.badge}</div>}<p className="text-xs font-bold text-[#4046B5]">{plan.files}</p><h3 className="mt-3 text-2xl font-extrabold">{plan.name}</h3><p className="mt-3 min-h-14 text-sm leading-7 text-[#5a5b71]">{plan.description}</p><div className="mt-6 border-y border-[#4046B5]/10 py-5"><p className="font-[Inter] text-3xl font-extrabold" dir="ltr">{formatEgp(plan.annualPiastres)}</p>{persona === "firm" && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EDEEF9] px-2.5 py-1 font-[Inter] text-xs font-extrabold text-[#4046B5]" dir="ltr"><Sparkles className="h-3.5 w-3.5"/>{((plan.annualPiastres / 100) / plan.fileCount / 12).toFixed(1)} ج.م / ملف / شهر</p>}<p className="mt-1 text-xs text-[#64657a]">{sales.pricing.from}</p></div><div className="mt-5 grid grid-cols-2 gap-2"><div className="rounded-xl bg-[#EDEEF9] p-3"><p className="text-[11px] font-bold text-[#62647d]">السعة</p><p className="mt-1 text-sm font-extrabold text-[#4046B5]">{plan.files}</p></div><div className="rounded-xl bg-[#EDEEF9] p-3"><p className="text-[11px] font-bold text-[#62647d]">الفريق</p><p className="mt-1 text-sm font-extrabold text-[#4046B5]">{plan.users}</p></div></div><p className="mt-5 text-xs font-bold text-[#4046B5]">{sales.pricing.decision}</p><p className="mt-1 min-h-12 text-xs leading-6 text-[#5a5b71]">{plan.decisionCue}</p><ul className="mt-5 space-y-3 border-t border-[#4046B5]/10 pt-5">{plan.features.map(feature => <li key={feature} className="flex items-start gap-2 text-sm leading-6"><Check className="mt-1 h-4 w-4 shrink-0 text-[#4046B5]"/>{feature}</li>)}</ul><Button onClick={() => { selectPlan(plan.sku); scrollToId("upsell"); }} className={`mt-7 rounded-xl ${plan.featured ? "bg-[#4046B5] hover:bg-[#343aa0]" : "bg-[#090A20] hover:bg-[#262642]"}`}>{selectedPlanSku === plan.sku ? "الباقة المختارة" : sales.pricing.select}</Button></article>)}</div></div></section>
+        {/* Pain & Value Section */}
+        <section className="mof-section bg-[#ECECF7]/60">
+          <div className="container">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="mof-eyebrow">{layoutCopy.pain.eyebrow}</p>
+              <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#07081A] md:text-5xl">
+                {layoutCopy.pain.title}
+              </h2>
+              <p className="mt-4 text-base leading-8 text-[#5b5c72] md:text-lg">
+                {layoutCopy.pain.body}
+              </p>
+            </div>
 
-      <section id="upsell" className="mof-section bg-[#0B0B22] text-white"><div className="container"><div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr]"><div><p className="mof-eyebrow text-[#c6c8ff]">{sales.upsell.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{sales.upsell.title}</h2><p className="mt-5 leading-8 text-white/70">{sales.upsell.body}</p><div className="mt-8 rounded-2xl border border-white/10 bg-white/[.06] p-5"><p className="text-xs font-bold text-[#c6c8ff]">اختيارك الحالي</p><p className="mt-2 text-xl font-extrabold">{selectedPlan?.name}</p><p className="mt-2 text-sm text-white/65">{selectedPlan?.decisionCue}</p></div></div><div className="grid gap-4">{ADDONS.map(addon => { const included = addon.includedIn?.includes(selectedPlan?.sku ?? ""); const chosen = selectedAddons.includes(addon.sku); return <article key={addon.sku} className={`rounded-3xl border p-5 transition ${included ? "border-[#8e93f4]/35 bg-[#4046B5]/25" : chosen ? "border-[#c5c8ff] bg-white text-[#090A20]" : "border-white/12 bg-white/[.04]"}`}><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div className="flex gap-3"><span className={`grid h-10 w-10 place-items-center rounded-xl ${included ? "bg-white/10 text-white" : chosen ? "bg-[#EDEEF9] text-[#4046B5]" : "bg-white/10 text-[#c6c8ff]"}`}><Zap className="h-5 w-5"/></span><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-extrabold">{addon.name}</h3>{included && <span className="rounded-full bg-[#c6c8ff] px-2 py-0.5 text-[10px] font-bold text-[#0B0B22]">{sales.upsell.included}</span>}</div><p className={`mt-2 text-sm leading-7 ${chosen ? "text-[#5b5c72]" : "text-white/65"}`}>{addon.description}</p><p className={`mt-2 text-xs font-bold ${chosen ? "text-[#4046B5]" : "text-[#c6c8ff]"}`}>{addon.salesCue}</p></div></div><div className="shrink-0 text-right"><p className="font-[Inter] text-lg font-extrabold" dir="ltr">{included ? "متضمن" : `+ ${formatEgp(addon.annualPiastres)}`}</p>{!included && <label className={`mt-3 flex cursor-pointer items-center justify-end gap-2 text-xs font-bold ${chosen ? "text-[#4046B5]" : "text-white"}`}><Checkbox checked={chosen} onCheckedChange={() => toggleAddon(addon.sku)}/>{chosen ? sales.upsell.added : sales.upsell.choose}</label>}</div></div></article>; })}<Button onClick={continueToCheckout} className="mt-2 h-13 rounded-xl bg-white text-[#4046B5] hover:bg-[#EDEEF9]">{sales.upsell.cta}</Button></div></div></div></section>
+            <div
+              className={`mt-12 grid gap-6 ${
+                persona === "firm" ? "md:grid-cols-2 xl:grid-cols-4" : "lg:grid-cols-3"
+              }`}
+            >
+              {layoutCopy.pain.items.map((item, index) => (
+                <article
+                  key={item.title}
+                  className="rounded-[2rem] border border-[#4046B5]/12 bg-white p-6 shadow-sm transition hover:shadow-md"
+                >
+                  <span className="inline-flex rounded-full bg-[#ECECF7] px-3 py-1 text-[11px] font-extrabold text-[#4046B5]">
+                    {item.label}
+                  </span>
+                  <div className="mt-5 flex items-start justify-between gap-4">
+                    <h3 className="text-xl font-extrabold leading-8 text-[#07081A]">{item.title}</h3>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#07081A] text-white">
+                      {index === 0 ? (
+                        <Layers3 className="h-5 w-5" />
+                      ) : index === 1 ? (
+                        <FileDown className="h-5 w-5" />
+                      ) : index === 2 ? (
+                        <ListChecks className="h-5 w-5" />
+                      ) : (
+                        <UsersRound className="h-5 w-5" />
+                      )}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm leading-7 text-[#5b5c72]">{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      <section className="border-y border-[#4046B5]/10 bg-[#fbfbff]"><div className="container py-12"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{layout.trust.eyebrow}</p><h2 className="mt-3 text-3xl font-extrabold md:text-5xl">{layout.trust.title}</h2></div><div className="mt-9 grid gap-4 md:grid-cols-3">{layout.trust.items.map((item, index) => <article key={item.title} className="relative rounded-2xl border border-[#4046B5]/12 bg-white p-6"><span className="mof-stamp inline-flex h-8 min-w-8 items-center justify-center bg-[#EDEEF9] px-2 text-xs font-extrabold">0{index + 1}</span><h3 className="mt-5 text-lg font-extrabold">{item.title}</h3><p className="mt-3 text-sm leading-7 text-[#5b5c72]">{item.body}</p></article>)}</div><div className="mt-8 text-center"><Button onClick={() => { track("trust_checkout_clicked", { persona, uiContext: "pre_checkout" }); continueToCheckout(); }} className="h-13 rounded-xl bg-[#4046B5] px-7 text-base font-extrabold hover:bg-[#343aa0]">راجع طلبك ثم تابع</Button></div></div></section>
+        {/* Operating Scenarios */}
+        <section id="operating" className="mof-section bg-[#07081A] text-white">
+          <div className="container">
+            <div className="grid items-center gap-10 lg:grid-cols-[.8fr_1.2fr]">
+              <div>
+                <p className="mof-eyebrow text-[#c6c8ff]">{operatingCopy.eyebrow}</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{operatingCopy.title}</h2>
+                <p className="mt-5 text-base leading-8 text-white/70">{operatingCopy.body}</p>
 
-      <section className="mof-section"><div className="container grid gap-10 lg:grid-cols-[.8fr_1.2fr]"><div><p className="mof-eyebrow">لماذا هذه الباقات؟</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{sales.why.title}</h2><p className="mt-5 max-w-md leading-8 text-[#5b5c72]">لا نضع مميزات عامة في كل بطاقة. الفرق بين الباقات ظاهر في السعة وعدد المستخدمين والنتيجة التي تخدمها.</p></div><div className="grid gap-3 sm:grid-cols-2">{sales.why[persona].map((item, index) => <article key={item} className="flex gap-4 rounded-2xl border border-[#4046B5]/10 bg-white p-5"><span className="font-[Inter] text-2xl font-extrabold text-[#4046B5]/30">0{index + 1}</span><p className="font-bold leading-7">{item}</p></article>)}</div></div></section>
+                <div className="mt-8 space-y-3">
+                  {operatingCopy.items.map((item, index) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveOperating(index);
+                        track("operating_scenario_selected", {
+                          persona,
+                          uiContext: "operating_section",
+                          properties: { scenario: item.id },
+                        });
+                      }}
+                      className={`flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-right transition ${
+                        activeOperating === index
+                          ? "border-[#b8bcff] bg-[#4046B5]"
+                          : "border-white/10 bg-white/[.045] hover:bg-white/[.09]"
+                      }`}
+                    >
+                      <span>
+                        <span className="block text-sm font-extrabold">{item.label}</span>
+                        <span className="mt-1 block text-xs text-white/60">{item.cue}</span>
+                      </span>
+                      <ArrowLeft
+                        className={`h-4 w-4 shrink-0 ${
+                          activeOperating === index ? "text-white" : "text-[#b8bcff]"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-      <section className="mof-section bg-[#EDEEF9]/60"><div className="container"><div className="mx-auto max-w-3xl text-center"><p className="mof-eyebrow">{sales.common.eyebrow}</p><h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">{sales.common.title}</h2></div><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{sales.common.items.map((item, index) => <article key={item} className="rounded-2xl border border-[#4046B5]/10 bg-white p-5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#EDEEF9] font-[Inter] text-sm font-extrabold text-[#4046B5]">0{index + 1}</span><p className="mt-5 font-extrabold leading-7">{item}</p></article>)}</div></div></section>
+              <div className="rounded-[2.2rem] border border-white/10 bg-white/[.04] p-5 shadow-2xl">
+                <div className="rounded-[1.6rem] border border-white/10 bg-[#101132] p-6">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#f3b750]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#6d72db]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#38c99b]" />
+                    </div>
+                    <span className="mof-stamp-white px-3 py-1 text-[10px]">موفوتر — مسار العمل المنظم</span>
+                  </div>
 
-      <section className="mof-section bg-white"><div className="container max-w-4xl"><div className="text-center"><p className="mof-eyebrow">اختيار أهدأ</p><h2 className="mt-4 text-3xl font-extrabold md:text-5xl">{layout.faq.title}</h2></div><div className="mt-10 space-y-3">{layout.faq.items.map((item, index) => <details key={item.question} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) track("faq_opened", { persona, uiContext: "selection_faq", properties: { question_index: index } }); }} className="group rounded-2xl border border-[#4046B5]/10 bg-[#fbfbff] p-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-extrabold"><span>{item.question}</span><ChevronDown className="h-5 w-5 shrink-0 text-[#4046B5] transition group-open:rotate-180"/></summary><p className="mt-4 border-t border-[#4046B5]/10 pt-4 text-sm leading-7 text-[#5b5c72]">{item.answer}</p></details>)}</div></div></section>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-[.75fr_1.25fr]">
+                    <div className="rounded-2xl bg-[#4046B5] p-5">
+                      <p className="text-[11px] font-bold text-white/60">الحالة المختارة</p>
+                      <p className="mt-2 text-xl font-extrabold leading-8">{activeOperatingItem.label}</p>
+                      <div className="mt-7 border-t border-white/20 pt-4">
+                        <p className="text-[10px] font-bold text-white/60">الخطوة التالية</p>
+                        <p className="mt-1 text-xs font-extrabold">{activeOperatingItem.cue}</p>
+                      </div>
+                    </div>
 
-      <section className="pb-16"><div className="container"><div className="grid gap-8 overflow-hidden rounded-[2rem] bg-[#4046B5] p-8 text-white md:grid-cols-[1fr_auto] md:p-12"><div><p className="text-xs font-bold tracking-[.18em] text-[#d7d8ff]">دليل بداية منظم</p><h2 className="mt-3 text-3xl font-extrabold">{sales.cta.title}</h2><p className="mt-4 max-w-xl leading-8 text-white/75">{sales.cta.body}</p><form onSubmit={submitGuide} className="mt-6 flex max-w-lg flex-col gap-3 sm:flex-row"><input required type="email" placeholder="بريد العمل الإلكتروني" className="h-12 flex-1 rounded-xl border-0 bg-white px-4 text-sm text-[#090A20] outline-none" dir="ltr"/><Button type="submit" className="h-12 rounded-xl bg-[#090A20] hover:bg-[#232444]">{leadSent ? "تم استلام طلبك" : "أرسل لي الدليل"}</Button></form></div><Button onClick={() => whatsapp("bottom_cta")} variant="outline" className="h-13 self-center rounded-xl border-white/35 bg-white/10 px-6 text-white hover:bg-white hover:text-[#4046B5]"><MessageCircle className="ml-2 h-4 w-4"/>{sales.cta.button}</Button></div></div></section>
-    </main>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold text-[#c6c8ff]">كيف تنظم القرار؟</p>
+                          <h3 className="mt-2 text-2xl font-extrabold leading-tight">{activeOperatingItem.title}</h3>
+                        </div>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-[#d7d8ff]">
+                          {activeOperating === 0 ? (
+                            <FolderKanban className="h-5 w-5" />
+                          ) : activeOperating === 1 ? (
+                            <UsersRound className="h-5 w-5" />
+                          ) : (
+                            <Zap className="h-5 w-5" />
+                          )}
+                        </span>
+                      </div>
+                      <p className="mt-4 text-sm leading-7 text-white/70">{activeOperatingItem.body}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-    <MofawtarFooter onQuickLink={handleFooterQuickLink} onInteraction={handleFooterInteraction}/>
-    <button onClick={() => whatsapp("floating")} className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5"><MessageCircle className="h-5 w-5"/>واتساب</button>
+        {/* Pricing Section */}
+        <PricingSection
+          persona={persona}
+          plans={plans}
+          selectedPlanSku={selectedPlanSku}
+          onSelectPlan={selectPlan}
+        />
 
-    {consent === null && <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl rounded-[1.35rem] border border-[#4046B5]/15 bg-white p-3.5 shadow-[0_25px_70px_-30px_#07081A] md:p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-extrabold">{core.cookies.title}</p><p className="mt-1 max-w-xl text-[11px] leading-5 text-[#5b5c72]">{core.cookies.body}</p></div><div className="flex shrink-0 flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => saveConsent({ analytics: false, marketing: false })}>{core.cookies.reject}</Button><Button size="sm" onClick={() => saveConsent({ analytics: true, marketing: true })}>{core.cookies.accept}</Button></div></div></div>}
+        {/* Upsell / Addons Section */}
+        <section id="upsell" className="mof-section bg-[#07081A] text-white">
+          <div className="container">
+            <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] items-start">
+              <div>
+                <p className="mof-eyebrow text-[#c6c8ff]">{sales.upsell.eyebrow}</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl text-white">{sales.upsell.title}</h2>
+                <p className="mt-5 text-base leading-8 text-white/80">{sales.upsell.body}</p>
 
-    <Dialog open={gateOpen} onOpenChange={open => { if (!open) track("persona_gate_dismissed", { persona, uiContext: "gate" }); setGateOpen(open); }}><DialogContent className="max-w-2xl overflow-hidden rounded-[2rem] border-0 p-0"><div className="bg-[#0B0B22] p-7 text-white"><p className="text-xs font-bold tracking-[.18em] text-[#c6c8ff]">{sales.gate.eyebrow}</p><DialogHeader><DialogTitle className="mt-3 text-3xl text-white">{sales.gate.title}</DialogTitle><DialogDescription className="mt-3 leading-7 text-white/70">{sales.gate.body}</DialogDescription></DialogHeader></div><div className="grid gap-4 p-6 sm:grid-cols-2"><button onClick={() => choosePersona("firm", "gate")} className="rounded-2xl border border-[#4046B5]/15 p-6 text-right transition hover:-translate-y-0.5 hover:border-[#4046B5] hover:bg-[#F7F7FF]"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#EDEEF9] text-[#4046B5]"><UsersRound className="h-5 w-5"/></span><h3 className="mt-5 text-xl font-extrabold">{sales.gate.firm.title}</h3><p className="mt-2 text-sm leading-7 text-[#5b5c72]">{sales.gate.firm.body}</p></button><button onClick={() => choosePersona("company", "gate")} className="rounded-2xl border border-[#4046B5]/15 p-6 text-right transition hover:-translate-y-0.5 hover:border-[#4046B5] hover:bg-[#F7F7FF]"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#EDEEF9] text-[#4046B5]"><MonitorSmartphone className="h-5 w-5"/></span><h3 className="mt-5 text-xl font-extrabold">{sales.gate.company.title}</h3><p className="mt-2 text-sm leading-7 text-[#5b5c72]">{sales.gate.company.body}</p></button><button onClick={() => { setGateOpen(false); track("persona_gate_skipped", { persona, uiContext: "gate" }); }} className="sm:col-span-2 text-sm font-bold text-[#64657a] hover:text-[#4046B5]">{sales.gate.skip}</button></div></DialogContent></Dialog>
-    <Dialog open={exitOpen} onOpenChange={setExitOpen}><DialogContent className="max-w-md rounded-3xl"><DialogHeader><p className="text-xs font-bold tracking-[.18em] text-[#4046B5]">قبل أن تغادر</p><DialogTitle className="mt-2 text-2xl">هل تفضل بداية أسرع؟</DialogTitle><DialogDescription className="leading-7">أخبرنا بعدد الملفات أو المستخدمين، وسنساعدك في تحديد سعة مناسبة قبل اختيار الباقة.</DialogDescription></DialogHeader><div className="mt-3 flex flex-wrap gap-3"><Button onClick={() => whatsapp("exit_intent")} className="rounded-xl bg-[#4046B5]"><MessageCircle className="ml-2 h-4 w-4"/>تواصل عبر واتساب</Button><Button variant="outline" onClick={() => setExitOpen(false)} className="rounded-xl">أكمل التصفح</Button></div></DialogContent></Dialog>
-    <Dialog open={demoOpen} onOpenChange={open => { setDemoOpen(open); if (!open) track("demo_preview_closed", { persona, uiContext: "demo_modal" }); }}><DialogContent className="max-w-4xl overflow-hidden rounded-[2rem] border-0 bg-[#0B0B22] p-0 text-white"><div className="border-b border-white/10 p-6 md:p-8"><p className="text-xs font-bold tracking-[.18em] text-[#c6c8ff]">{layout.demo.duration}</p><DialogHeader><DialogTitle className="mt-3 text-3xl text-white">{layout.demo.modalTitle}</DialogTitle><DialogDescription className="mt-3 max-w-2xl leading-7 text-white/65">{layout.demo.modalBody}</DialogDescription></DialogHeader></div><div className="p-6 md:p-8"><div className="grid gap-4 sm:grid-cols-2">{layout.demo.steps.map((step, index) => <div key={step} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[.06] p-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#4046B5] text-sm font-extrabold">0{index + 1}</span><span className="text-sm font-bold">{step}</span></div>)}</div><div className="mt-7 flex flex-wrap gap-3"><Button onClick={() => { track("demo_to_pricing_clicked", { persona, uiContext: "demo_modal" }); setDemoOpen(false); scrollToId("pricing"); }} className="rounded-xl bg-white text-[#4046B5] hover:bg-[#EDEEF9]">شاهد الباقات</Button><Button variant="outline" onClick={() => whatsapp("demo_modal")} className="rounded-xl border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"><MessageCircle className="ml-2 h-4 w-4"/>اسألنا عن ديمو حقيقي</Button></div></div></DialogContent></Dialog>
-    <Dialog open={leadMagnetOpen} onOpenChange={open => { if (!open && leadMagnetOpen) closeLeadMagnet(); else setLeadMagnetOpen(open); }}><DialogContent className="max-w-md overflow-hidden rounded-[2rem] border-0 p-0"><div className="bg-[#0B0B22] p-7 text-white"><p className="text-xs font-bold tracking-[.16em] text-[#c6c8ff]">{sales.leadMagnet.eyebrow}</p><DialogHeader><DialogTitle className="mt-3 text-3xl leading-tight text-white">{sales.leadMagnet.title}</DialogTitle><DialogDescription className="mt-3 leading-7 text-white/70">{sales.leadMagnet.body}</DialogDescription></DialogHeader></div><div className="p-6">{leadMagnetDelivered ? <div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#EDEEF9] text-[#4046B5]"><Check className="h-7 w-7"/></div><h3 className="mt-5 text-2xl font-extrabold">{sales.leadMagnet.successTitle}</h3><p className="mt-3 leading-7 text-[#5b5c72]">{sales.leadMagnet.successBody}</p><a href={sales.leadMagnet.url} target="_blank" rel="noreferrer" onClick={() => track("lead_magnet_calculator_opened", { persona, uiContext: "payroll_calculator_popup" })} className="mt-6 inline-flex h-12 items-center rounded-xl bg-[#4046B5] px-5 text-sm font-bold text-white transition hover:bg-[#343aa0]">{sales.leadMagnet.openCalculator}<ArrowLeft className="mr-2 h-4 w-4"/></a></div> : <form onSubmit={submitLeadMagnet} className="space-y-4"><label className="block text-sm font-bold"><span>{sales.leadMagnet.email}</span><input required value={leadMagnetEmail} onChange={event => setLeadMagnetEmail(event.target.value)} type="email" dir="ltr" className="mt-2 h-12 w-full rounded-xl border border-[#4046B5]/15 bg-[#fbfbff] px-4 text-sm text-[#090A20] outline-none transition focus:border-[#4046B5]"/></label><label className="block text-sm font-bold"><span>{sales.leadMagnet.phone}</span><input required value={leadMagnetPhone} onChange={event => setLeadMagnetPhone(event.target.value)} type="tel" inputMode="tel" placeholder="01xxxxxxxxx" dir="ltr" className="mt-2 h-12 w-full rounded-xl border border-[#4046B5]/15 bg-[#fbfbff] px-4 text-sm text-[#090A20] outline-none transition focus:border-[#4046B5]"/></label>{leadMagnetError && <p role="alert" className="rounded-xl bg-[#fff0ed] p-3 text-xs font-bold text-[#b84025]">{leadMagnetError}</p>}<p className="text-xs leading-6 text-[#6b6c80]">{sales.leadMagnet.note}</p><Button type="submit" disabled={leadMagnetMutation.isPending} className="h-12 w-full rounded-xl bg-[#4046B5] font-bold hover:bg-[#343aa0]">{leadMagnetMutation.isPending ? sales.leadMagnet.processing : sales.leadMagnet.submit}</Button></form>}<button type="button" onClick={closeLeadMagnet} className="mt-5 w-full text-center text-xs font-bold text-[#66677d] hover:text-[#4046B5]">{sales.leadMagnet.dismiss}</button></div></DialogContent></Dialog>
-  </div>;
+                <div className="mt-8 rounded-3xl border border-white/15 bg-white/[.07] p-6 backdrop-blur-md">
+                  <p className="text-xs font-bold text-[#c6c8ff]">باقتك المختارة حاليًا</p>
+                  <p className="mt-2 text-2xl font-black text-white flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#10B981] animate-pulse" />
+                    {selectedPlan?.name}
+                  </p>
+                  <p className="mt-2 text-xs leading-6 text-white/70">{selectedPlan?.decisionCue}</p>
+                  <div className="mt-4 flex items-center gap-3 text-xs font-bold text-[#b9bdff] border-t border-white/10 pt-3">
+                    <span>{selectedPlan?.files}</span>
+                    <span>•</span>
+                    <span>{selectedPlan?.users}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {ADDONS.map((addon) => {
+                  const included = addon.includedIn?.includes(selectedPlan?.sku ?? "");
+                  const chosen = selectedAddons.includes(addon.sku);
+                  const price = addon.annualPiastres;
+
+                  return (
+                    <div
+                      key={addon.sku}
+                      role={included ? undefined : "button"}
+                      tabIndex={included ? undefined : 0}
+                      onClick={() => {
+                        if (!included) toggleAddon(addon.sku);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!included && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          toggleAddon(addon.sku);
+                        }
+                      }}
+                      className={`relative flex flex-col justify-between rounded-3xl border-2 p-6 transition-all duration-200 ${
+                        included
+                          ? "border-[#10B981]/50 bg-[#10B981]/10 text-white cursor-default"
+                          : chosen
+                          ? "border-[#10B981] bg-[#10B981]/15 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)] ring-2 ring-[#10B981]/40 cursor-pointer scale-[1.01]"
+                          : "border-white/20 bg-white/[.06] hover:border-white/40 hover:bg-white/[.10] text-white cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-4">
+                          {/* Visual Indicator Checkbox */}
+                          <div
+                            className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-xl border-2 transition-all duration-200 ${
+                              included
+                                ? "border-[#10B981] bg-[#10B981] text-white shadow-xs"
+                                : chosen
+                                ? "border-[#10B981] bg-[#10B981] text-white shadow-md shadow-[#10B981]/40"
+                                : "border-white/50 bg-white/10 text-transparent hover:border-white"
+                            }`}
+                          >
+                            <Check className="h-4 w-4 stroke-[3]" />
+                          </div>
+
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              <h3 className="text-lg font-black text-white">{addon.name}</h3>
+                              {included ? (
+                                <span className="rounded-full bg-[#10B981] px-3 py-0.5 text-[11px] font-black text-white shadow-xs">
+                                  ✓ متضمنة في باقتك مجاناً
+                                </span>
+                              ) : chosen ? (
+                                <span className="rounded-full bg-[#10B981] px-3 py-0.5 text-[11px] font-black text-white shadow-xs">
+                                  ✓ تمت الإضافة إلى الخطة
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold text-white/80">
+                                  إضافة اختيارية
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1.5 text-sm leading-6 text-white/85">
+                              {addon.description}
+                            </p>
+                            <p className="mt-1.5 text-xs font-extrabold text-[#c6c8ff]">
+                              {addon.salesCue}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Price Tag */}
+                        <div className="shrink-0 text-left sm:text-left self-end sm:self-center border-t border-white/10 pt-3 sm:border-0 sm:pt-0">
+                          <p className="font-[Inter] text-xl font-black text-white" dir="ltr">
+                            {included ? "مجاناً" : `+ ${formatEgp(price)}`}
+                          </p>
+                          <p className="text-[10px] font-extrabold text-[#a5a9d8] mt-0.5">
+                            {included ? "ضمن الباقة الأساسية" : "/ سنويًا"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <Button
+                  onClick={continueToCheckout}
+                  className="mt-4 h-14 rounded-2xl bg-white text-base font-black text-[#4046B5] shadow-xl hover:bg-[#ECECF7] hover:scale-[1.01] active:scale-98 transition-all"
+                >
+                  {sales.upsell.cta}
+                  <ArrowLeft className="mr-2 h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <TestimonialsSection />
+
+        {/* Comparison Table */}
+        <section className="mof-section bg-[#FBFBFF]">
+          <div className="container">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="mof-eyebrow">{layout.comparison.eyebrow}</p>
+              <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#07081A] md:text-5xl">
+                {layout.comparison.title}
+              </h2>
+            </div>
+
+            <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#4046B5]/15 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-right">
+                  <thead>
+                    <tr className="bg-[#07081A] text-white">
+                      <th className="p-5 text-sm font-extrabold">نقطة القرار والمقارنة</th>
+                      <th className="p-5 text-sm font-extrabold text-white/60">بدون موفوتر (الطريقة اليدوية)</th>
+                      <th className="p-5 text-sm font-extrabold text-[#d7d8ff]">مع منظومة موفوتر السحابية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {layout.comparison.rows.map((row, index) => (
+                      <tr key={row.need} className={index % 2 ? "bg-[#F3F4FB]" : "bg-white"}>
+                        <td className="p-5 text-sm font-extrabold text-[#07081A]">{row.need}</td>
+                        <td className="p-5 text-sm leading-7 text-[#696a80]">{row.ordinary}</td>
+                        <td className="p-5 text-sm font-extrabold leading-7 text-[#4046B5]">{row.mof}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section id="faq" className="mof-section bg-white">
+          <div className="container max-w-4xl">
+            <div className="text-center">
+              <p className="mof-eyebrow">إجابات مباشرة وواضحة</p>
+              <h2 className="mt-3 text-3xl font-extrabold text-[#07081A] md:text-5xl">{layout.faq.title}</h2>
+              <p className="mt-3 text-sm text-[#5b5c72]">كل الأسئلة التي تدور في بالك حول منظومة الضرائب المصرية وموفوتر.</p>
+
+              {/* FAQ Search Bar */}
+              <div className="relative mx-auto mt-6 max-w-md">
+                <Search className="absolute right-3.5 top-3.5 h-4 w-4 text-[#8e90a8]" />
+                <input
+                  type="text"
+                  placeholder="ابحث في الأسئلة الشائعة..."
+                  value={faqSearch}
+                  onChange={(e) => setFaqSearch(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-[#4046B5]/15 bg-[#FBFBFF] pr-10 pl-4 text-xs font-bold text-[#07081A] outline-none transition focus:border-[#4046B5]"
+                />
+              </div>
+            </div>
+
+            <div className="mt-10 space-y-3">
+              {filteredFaq.map((item, index) => (
+                <details
+                  key={item.question}
+                  onToggle={(event) => {
+                    if ((event.currentTarget as HTMLDetailsElement).open) {
+                      track("faq_opened", {
+                        persona,
+                        uiContext: "selection_faq",
+                        properties: { question_index: index },
+                      });
+                    }
+                  }}
+                  className="group rounded-2xl border border-[#4046B5]/12 bg-[#FBFBFF] p-5 transition hover:border-[#4046B5]/25"
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-extrabold text-[#07081A]">
+                    <span>{item.question}</span>
+                    <ChevronDown className="h-5 w-5 shrink-0 text-[#4046B5] transition-transform duration-200 group-open:rotate-180" />
+                  </summary>
+                  <p className="mt-4 border-t border-[#4046B5]/10 pt-4 text-sm leading-7 text-[#5b5c72]">{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Bottom CTA Banner */}
+        <section className="pb-16 pt-6">
+          <div className="container">
+            <div className="grid gap-8 overflow-hidden rounded-[2.5rem] bg-[#4046B5] p-8 text-white md:grid-cols-[1fr_auto] md:p-12 shadow-2xl">
+              <div>
+                <p className="text-xs font-extrabold tracking-[.18em] text-[#d7d8ff]">دليل البداية السريعة</p>
+                <h2 className="mt-3 text-3xl font-black md:text-4xl">{sales.cta.title}</h2>
+                <p className="mt-4 max-w-xl text-sm leading-8 text-white/80">{sales.cta.body}</p>
+
+                <form onSubmit={submitGuide} className="mt-6 flex max-w-lg flex-col gap-3 sm:flex-row">
+                  <input
+                    required
+                    type="email"
+                    placeholder="بريد العمل الإلكتروني"
+                    className="h-12 flex-1 rounded-xl border-0 bg-white px-4 text-sm text-[#07081A] outline-none"
+                    dir="ltr"
+                  />
+                  <Button type="submit" className="h-12 rounded-xl bg-[#07081A] font-extrabold hover:bg-[#232444]">
+                    {leadSent ? "تم استلام طلبك ✓" : "أرسل لي الدليل المجاني"}
+                  </Button>
+                </form>
+              </div>
+
+              <div className="flex flex-col justify-center gap-3 self-center">
+                <Button
+                  onClick={() => whatsapp("bottom_cta")}
+                  variant="outline"
+                  className="h-14 rounded-2xl border-white/35 bg-white/10 px-7 text-base font-extrabold text-white hover:bg-white hover:text-[#4046B5]"
+                >
+                  <MessageCircle className="ml-2 h-5 w-5" />
+                  {sales.cta.button}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <MofawtarFooter onQuickLink={handleFooterQuickLink} onInteraction={handleFooterInteraction} />
+
+      {/* Floating Sticky Conversion Bar */}
+      <div className="fixed bottom-5 left-5 right-5 z-40 mx-auto flex max-w-md items-center justify-between gap-3 rounded-full border border-white/20 bg-[#07081A]/95 px-4 py-2.5 text-white shadow-2xl backdrop-blur-lg">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] animate-ping" />
+          <span className="text-xs font-extrabold">باقات تبدأ من 250 ج.م/سنة</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => scrollToId("pricing")}
+            className="h-9 rounded-full bg-[#4046B5] px-4 text-xs font-black text-white hover:bg-[#343aa0]"
+          >
+            اختَر باقتك
+          </Button>
+          <button
+            onClick={() => whatsapp("floating")}
+            className="grid h-9 w-9 place-items-center rounded-full bg-[#25D366] text-white transition hover:scale-110"
+            aria-label="تواصل عبر واتساب"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Cookies Consent */}
+      {consent === null && (
+        <div className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-2xl rounded-[1.5rem] border border-[#4046B5]/15 bg-white p-4 shadow-2xl md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-extrabold text-[#07081A]">{core.cookies.title}</p>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-[#5b5c72]">{core.cookies.body}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => saveConsent({ analytics: false, marketing: false })}>
+                {core.cookies.reject}
+              </Button>
+              <Button size="sm" className="bg-[#4046B5]" onClick={() => saveConsent({ analytics: true, marketing: true })}>
+                {core.cookies.accept}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Persona Gate Dialog */}
+      <Dialog
+        open={gateOpen}
+        onOpenChange={(open) => {
+          if (!open) track("persona_gate_dismissed", { persona, uiContext: "gate" });
+          setGateOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl overflow-hidden rounded-[2.5rem] border-0 p-0">
+          <div className="bg-[#07081A] p-8 text-white">
+            <p className="text-xs font-extrabold tracking-[.18em] text-[#c6c8ff]">{sales.gate.eyebrow}</p>
+            <DialogHeader>
+              <DialogTitle className="mt-3 text-3xl font-black text-white">{sales.gate.title}</DialogTitle>
+              <DialogDescription className="mt-3 text-sm leading-7 text-white/75">
+                {sales.gate.body}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="grid gap-4 p-6 sm:grid-cols-2 bg-white">
+            <button
+              onClick={() => choosePersona("firm", "gate")}
+              className="rounded-2xl border-2 border-[#4046B5]/15 p-6 text-right transition hover:-translate-y-1 hover:border-[#4046B5] hover:bg-[#F7F7FF]"
+            >
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#ECECF7] text-[#4046B5]">
+                <UsersRound className="h-6 w-6" />
+              </span>
+              <h3 className="mt-5 text-xl font-black text-[#07081A]">{sales.gate.firm.title}</h3>
+              <p className="mt-2 text-xs leading-6 text-[#5b5c72]">{sales.gate.firm.body}</p>
+            </button>
+
+            <button
+              onClick={() => choosePersona("company", "gate")}
+              className="rounded-2xl border-2 border-[#4046B5]/15 p-6 text-right transition hover:-translate-y-1 hover:border-[#4046B5] hover:bg-[#F7F7FF]"
+            >
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#ECECF7] text-[#4046B5]">
+                <Building2 className="h-6 w-6" />
+              </span>
+              <h3 className="mt-5 text-xl font-black text-[#07081A]">{sales.gate.company.title}</h3>
+              <p className="mt-2 text-xs leading-6 text-[#5b5c72]">{sales.gate.company.body}</p>
+            </button>
+
+            <button
+              onClick={() => {
+                setGateOpen(false);
+                track("persona_gate_skipped", { persona, uiContext: "gate" });
+              }}
+              className="sm:col-span-2 text-center text-xs font-bold text-[#64657a] hover:text-[#4046B5]"
+            >
+              {sales.gate.skip}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exit Intent Dialog */}
+      <Dialog open={exitOpen} onOpenChange={setExitOpen}>
+        <DialogContent className="max-w-md rounded-[2.2rem] p-7">
+          <DialogHeader>
+            <p className="text-xs font-extrabold tracking-[.18em] text-[#4046B5]">قبل ما تقفل الصفحة</p>
+            <DialogTitle className="mt-2 text-2xl font-black text-[#07081A]">
+              مش متأكد إيه الباقة اللي تناسبك؟
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-6 text-[#5b5c72]">
+              قولنا بس على عدد الملفات أو حجم الفواتير، وفريقنا المصري المتخصص هيرشحلك أنسب وأوفر حل لمكتبك أو شركتك.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-5 flex flex-col gap-3">
+            <Button onClick={() => whatsapp("exit_intent")} className="h-12 rounded-xl bg-[#4046B5] font-extrabold">
+              <MessageCircle className="ml-2 h-4 w-4" />
+              استشر خبير الضرائب عبر واتساب
+            </Button>
+            <Button variant="outline" onClick={() => setExitOpen(false)} className="rounded-xl">
+              أكمل التصفح
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lead Magnet Modal */}
+      <Dialog
+        open={leadMagnetOpen}
+        onOpenChange={(open) => {
+          if (!open && leadMagnetOpen) closeLeadMagnet();
+          else setLeadMagnetOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md overflow-hidden rounded-[2.2rem] border-0 p-0">
+          <div className="bg-[#07081A] p-7 text-white">
+            <p className="text-xs font-extrabold tracking-[.16em] text-[#c6c8ff]">{sales.leadMagnet.eyebrow}</p>
+            <DialogHeader>
+              <DialogTitle className="mt-2 text-2xl font-black text-white">{sales.leadMagnet.title}</DialogTitle>
+              <DialogDescription className="mt-2 text-xs leading-6 text-white/75">
+                {sales.leadMagnet.body}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="p-6 bg-white">
+            {leadMagnetDelivered ? (
+              <div className="text-center">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#ECECF7] text-[#4046B5]">
+                  <Check className="h-7 w-7" />
+                </div>
+                <h3 className="mt-4 text-xl font-black text-[#07081A]">{sales.leadMagnet.successTitle}</h3>
+                <p className="mt-2 text-xs leading-6 text-[#5b5c72]">{sales.leadMagnet.successBody}</p>
+                <a
+                  href={sales.leadMagnet.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => track("lead_magnet_calculator_opened", { persona, uiContext: "payroll_calculator_popup" })}
+                  className="mt-5 inline-flex h-12 items-center rounded-xl bg-[#4046B5] px-6 text-xs font-black text-white transition hover:bg-[#343aa0]"
+                >
+                  {sales.leadMagnet.openCalculator}
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                </a>
+              </div>
+            ) : (
+              <form onSubmit={submitLeadMagnet} className="space-y-4">
+                <label className="block text-xs font-bold text-[#07081A]">
+                  <span>{sales.leadMagnet.email}</span>
+                  <input
+                    required
+                    value={leadMagnetEmail}
+                    onChange={(e) => setLeadMagnetEmail(e.target.value)}
+                    type="email"
+                    dir="ltr"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-[#4046B5]/15 bg-[#FBFBFF] px-4 text-xs text-[#07081A] outline-none transition focus:border-[#4046B5]"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-[#07081A]">
+                  <span>{sales.leadMagnet.phone}</span>
+                  <input
+                    required
+                    value={leadMagnetPhone}
+                    onChange={(e) => setLeadMagnetPhone(e.target.value)}
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="01xxxxxxxxx"
+                    dir="ltr"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-[#4046B5]/15 bg-[#FBFBFF] px-4 text-xs text-[#07081A] outline-none transition focus:border-[#4046B5]"
+                  />
+                </label>
+                {leadMagnetError && (
+                  <p role="alert" className="rounded-xl bg-[#fff0ed] p-2.5 text-xs font-bold text-[#b84025]">
+                    {leadMagnetError}
+                  </p>
+                )}
+                <p className="text-[11px] leading-5 text-[#6b6c80]">{sales.leadMagnet.note}</p>
+                <Button
+                  type="submit"
+                  disabled={leadMagnetMutation.isPending}
+                  className="h-12 w-full rounded-xl bg-[#4046B5] font-black hover:bg-[#343aa0]"
+                >
+                  {leadMagnetMutation.isPending ? sales.leadMagnet.processing : sales.leadMagnet.submit}
+                </Button>
+              </form>
+            )}
+            <button
+              type="button"
+              onClick={closeLeadMagnet}
+              className="mt-4 w-full text-center text-xs font-bold text-[#66677d] hover:text-[#4046B5]"
+            >
+              {sales.leadMagnet.dismiss}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
+

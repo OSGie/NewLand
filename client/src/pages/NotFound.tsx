@@ -1,52 +1,71 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
+import { ArrowLeft, FileQuestion, Home, MessageCircle, Sparkles, HelpCircle } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function NotFound() {
   const [, setLocation] = useLocation();
 
-  const handleGoHome = () => {
-    setLocation("/");
-  };
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-              <AlertCircle className="relative h-16 w-16 text-red-500" />
-            </div>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-[#ECECF7] via-[#F8F8FC] to-[#ECECF7] p-4 text-[#07081A]">
+      <div className="w-full max-w-lg overflow-hidden rounded-[2.5rem] border border-[#4046B5]/15 bg-white p-8 md:p-10 shadow-[0_30px_90px_-35px_rgba(64,70,181,0.25)] text-center">
+        {/* Top Logo */}
+        <a href="/" className="inline-block mb-6">
+          <img src="/brand/mofawtar-badge-logo.png" alt="مفوتر" className="h-9 w-auto mx-auto" />
+        </a>
+
+        {/* 404 Stamp & Icon */}
+        <div className="relative mx-auto grid h-24 w-24 place-items-center">
+          <div className="absolute inset-0 rounded-full bg-[#4046B5]/10 animate-pulse" />
+          <div className="relative grid h-20 w-20 place-items-center rounded-3xl bg-[#ECECF7] text-[#4046B5] shadow-xs">
+            <FileQuestion className="h-10 w-10" />
           </div>
+        </div>
 
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">404</h1>
-
-          <h2 className="text-xl font-semibold text-slate-700 mb-4">
-            Page Not Found
-          </h2>
-
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Sorry, the page you are looking for doesn't exist.
+        <div className="mt-6">
+          <span className="mof-stamp px-3 py-0.5 text-xs font-black">خطأ 404 • ملف غير موجود</span>
+          <h1 className="mt-3 text-2xl md:text-3xl font-black text-[#07081A]">
+            شكل الفاتورة دي تاهت في الدفاتر! 🧾😅
+          </h1>
+          <p className="mt-3 text-xs leading-7 text-[#5b5c72]">
+            الصفحة اللي بتدور عليها مش موجودة أو تم نقلها لمكان تاني.
             <br />
-            It may have been moved or deleted.
+            تقدر ترجع للرئيسية وتكمل شغلك الضريبي بكل سهولة.
           </p>
+        </div>
 
-          <div
-            id="not-found-button-group"
-            className="flex flex-col sm:flex-row gap-3 justify-center"
+        {/* Action Buttons */}
+        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          <Button
+            onClick={() => setLocation("/")}
+            className="h-12 flex-1 rounded-2xl bg-[#4046B5] text-xs font-black text-white shadow-md shadow-[#4046B5]/25 hover:bg-[#343aa0]"
           >
-            <Button
-              onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <Home className="h-4 w-4 ml-2" />
+            الرجوع للصفحة الرئيسية
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setLocation("/#pricing")}
+            className="h-12 rounded-2xl border-[#4046B5]/20 bg-[#FBFBFF] text-xs font-bold text-[#4046B5] hover:bg-[#ECECF7]"
+          >
+            استعراض الباقات والأسعار
+          </Button>
+        </div>
+
+        {/* Quick Help */}
+        <div className="mt-8 border-t border-[#4046B5]/10 pt-5">
+          <a
+            href="https://wa.me/201000000000"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#10B981] hover:underline"
+          >
+            <MessageCircle className="h-4 w-4" />
+            محتاج مساعدة؟ تواصل مع الدعم الفني على واتساب
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
+

@@ -16,7 +16,7 @@ const contractSchema = z.object({ customerName: z.string().min(2).max(160), taxC
 
 export const pocRouter = router({
   config: publicProcedure.query(() => ({ plans: PLANS, addons: ADDONS, promo: PROMO, analytics: ANALYTICS_DEMO_CONFIG })),
-  quote: publicProcedure.input(z.object({ planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual", "monthly"]) })).query(({ input }) => calculateQuote(input.planSku, input.addonSkus, input.billingCycle)),
+  quote: publicProcedure.input(z.object({ planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual"]).default("annual").optional() })).query(({ input }) => calculateQuote(input.planSku, input.addonSkus, "annual")),
   track: publicProcedure.input(eventSchema).mutation(async ({ input }) => {
     await db.recordTrackingEvent(input);
     return { accepted: true };
@@ -25,10 +25,10 @@ export const pocRouter = router({
     const lead = await db.createLead(input);
     return { contactId: lead.contactId, downloadUrl: "/lead-magnet-demo" };
   }),
-  createOrder: publicProcedure.input(z.object({ visitorId: z.string().min(8), persona: z.enum(["firm", "company"]), name: z.string().min(2).max(120), email: z.string().email().max(320), phone: z.string().min(6).max(30), planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual", "monthly"]) })).mutation(async ({ input }) => {
+  createOrder: publicProcedure.input(z.object({ visitorId: z.string().min(8), persona: z.enum(["firm", "company"]), name: z.string().min(2).max(120), email: z.string().email().max(320), phone: z.string().min(6).max(30), planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual"]).default("annual").optional() })).mutation(async ({ input }) => {
     let quote;
-    try { quote = calculateQuote(input.planSku, input.addonSkus, input.billingCycle); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "الباقة المختارة غير متاحة." }); }
-    const order = await db.createDemoOrder({ ...input, quote });
+    try { quote = calculateQuote(input.planSku, input.addonSkus, "annual"); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "الباقة المختارة غير متاحة." }); }
+    const order = await db.createDemoOrder({ ...input, billingCycle: "annual", quote });
     return { orderId: order.orderId, paymentToken: order.paymentToken, quote };
   }),
   getPaymentSession: publicProcedure.input(z.object({ token: z.string().min(20) })).query(async ({ input }) => {

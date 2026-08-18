@@ -89,17 +89,17 @@ export const ANALYTICS_DEMO_CONFIG = {
 
 export function isCampaignActive(now = new Date()) { return now.getTime() < new Date(PROMO.deadlineIso).getTime(); }
 
-export function calculateQuote(planSku: string, addonSkus: string[], billingCycle: "annual" | "monthly" = "annual", now = new Date()) {
+export function calculateQuote(planSku: string, addonSkus: string[], billingCycle: "annual" = "annual", now = new Date()) {
   const plan = PLANS.find(item => item.sku === planSku);
   if (!plan) throw new Error("Unknown plan");
   const chosenAddons = ADDONS.filter(item => addonSkus.includes(item.sku) && !item.includedIn?.includes(planSku));
-  const planPrice = billingCycle === "monthly" ? Math.round(plan.annualPiastres / 12) : plan.annualPiastres;
-  const addonPrice = chosenAddons.reduce((sum, item) => sum + (billingCycle === "monthly" ? Math.round(item.annualPiastres / 12) : item.annualPiastres), 0);
+  const planPrice = plan.annualPiastres;
+  const addonPrice = chosenAddons.reduce((sum, item) => sum + item.annualPiastres, 0);
   const subtotalPiastres = planPrice + addonPrice;
-  const discountPiastres = billingCycle === PROMO.eligibleBillingCycle && isCampaignActive(now) ? Math.floor((subtotalPiastres * PROMO.discountBps) / 10000) : 0;
+  const discountPiastres = isCampaignActive(now) ? Math.floor((subtotalPiastres * PROMO.discountBps) / 10000) : 0;
   const taxablePiastres = subtotalPiastres - discountPiastres;
   const vatPiastres = Math.round((taxablePiastres * 14) / 100);
-  return { plan, addons: chosenAddons, billingCycle, subtotalPiastres, discountPiastres, vatPiastres, totalPiastres: taxablePiastres + vatPiastres, campaignId: discountPiastres > 0 ? PROMO.campaignId : null };
+  return { plan, addons: chosenAddons, billingCycle: "annual" as const, subtotalPiastres, discountPiastres, vatPiastres, totalPiastres: taxablePiastres + vatPiastres, campaignId: discountPiastres > 0 ? PROMO.campaignId : null };
 }
 
 export function formatEgp(piastres: number) { return new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 2 }).format(piastres / 100); }

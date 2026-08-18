@@ -29,8 +29,8 @@ describe("PoC contract", () => {
     expect(html).toContain("يحق طلب الاسترداد خلال 14 يوماً وفق الشروط.");
     expect(html).toContain("الاسم على البطاقة");
     expect(html).toContain("Maintenance & Support:");
-    expect(html).toContain("mofawtar-contract-stamp_968c5af8.png");
-    expect(html).toContain("mofawtar-contract-signature_c3672b05.png");
+    expect(html).toContain("mofawtar-official-stamp.png");
+    expect(html).toContain("mofawtar-signature.png");
     ["توفير البيانات:", "أمن الحساب:", "الاستخدام والسداد:", "حفظ البيانات:", "التفعيل:", "الدعم والتدريب:", "الصيانة والدعم الفني:", "الاسترداد والترقية:", "المسؤولية:", "القانون والاختصاص:"].forEach(clause => expect(html).toContain(clause));
     ["Data Provision:", "Security:", "Usage Constraints:", "Data Retention:", "Activation:", "Support & Training:", "Maintenance & Support:", "Refunds & Upgrades:", "Liability:", "Governing Law:"].forEach(clause => expect(html).toContain(clause));
     expect(html).toContain("شركة اختبار");

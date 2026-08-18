@@ -1,62 +1,533 @@
 import content from "@/content/poc.ar.json";
 import { getPocContext, usePocTracking } from "@/hooks/usePocTracking";
-import { ADDONS, formatEgp, getPlansForPersona, PLANS } from "@shared/poc";
+import { ADDONS, formatEgp, getPlansForPersona, PLANS, PROMO } from "@shared/poc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, Check, LockKeyhole } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  CreditCard,
+  FileCheck,
+  HelpCircle,
+  LockKeyhole,
+  Receipt,
+  ShieldCheck,
+  Sparkles,
+  Smartphone,
+  Building2,
+  Phone,
+  Mail,
+  User,
+  BadgePercent
+} from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 export default function Checkout() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const track = usePocTracking();
   const queryString = window.location.search;
   const search = useMemo(() => new URLSearchParams(queryString), [queryString]);
   const persona: "firm" | "company" = search.get("persona") === "company" ? "company" : "firm";
   const availablePlans = useMemo(() => getPlansForPersona(persona), [persona]);
   const initialPlan = search.get("plan") ?? sessionStorage.getItem("mof_selected_plan") ?? availablePlans[0].sku;
-  const [planSku, setPlanSku] = useState(availablePlans.some(item => item.sku === initialPlan) ? initialPlan : availablePlans[0].sku);
-  const [cycle, setCycle] = useState<"annual" | "monthly">("annual");
+  const [planSku, setPlanSku] = useState(
+    availablePlans.some((item) => item.sku === initialPlan) ? initialPlan : availablePlans[0].sku
+  );
+  const cycle = "annual" as const;
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("card");
+
   const [addons, setAddons] = useState<string[]>(() => {
     const fromQuery = search.get("addons");
     if (fromQuery) return fromQuery.split(",").filter(Boolean);
-    try { return JSON.parse(sessionStorage.getItem("mof_selected_addons") ?? "[]") as string[]; } catch { return []; }
+    try {
+      return JSON.parse(sessionStorage.getItem("mof_selected_addons") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
   });
-  const quote = trpc.poc.quote.useQuery({ planSku, addonSkus: addons, billingCycle: cycle });
+
+  const quote = trpc.poc.quote.useQuery({ planSku, addonSkus: addons, billingCycle: "annual" });
   const createOrder = trpc.poc.createOrder.useMutation();
-  const plan = PLANS.find(item => item.sku === planSku);
+  const plan = PLANS.find((item) => item.sku === planSku);
   const trackingStarted = useRef(false);
 
   useEffect(() => {
     const requested = search.get("plan") ?? sessionStorage.getItem("mof_selected_plan");
-    setPlanSku(availablePlans.some(item => item.sku === requested) ? requested! : availablePlans[0].sku);
+    if (requested && availablePlans.some((item) => item.sku === requested)) {
+      setPlanSku(requested);
+    }
   }, [availablePlans, search]);
-  useEffect(() => { if (!trackingStarted.current) { trackingStarted.current = true; track("checkout_started", { persona, uiContext: "checkout" }); } }, [track, persona]);
-  useEffect(() => { setAddons(current => current.filter(sku => !ADDONS.find(item => item.sku === sku)?.includedIn?.includes(planSku))); }, [planSku]);
-  const toggleAddon = (sku: string) => setAddons(current => current.includes(sku) ? current.filter(item => item !== sku) : [...current, sku]);
+
+  useEffect(() => {
+    if (!trackingStarted.current) {
+      trackingStarted.current = true;
+      track("checkout_started", { persona, uiContext: "checkout" });
+    }
+  }, [track, persona]);
+
+  useEffect(() => {
+    setAddons((current) =>
+      current.filter((sku) => !ADDONS.find((item) => item.sku === sku)?.includedIn?.includes(planSku))
+    );
+  }, [planSku]);
+
+  const toggleAddon = (sku: string) =>
+    setAddons((current) => (current.includes(sku) ? current.filter((item) => item !== sku) : [...current, sku]));
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const context = getPocContext();
-    createOrder.mutate({ visitorId: context.visitorId, persona, name: String(form.get("name")), email: String(form.get("email")), phone: String(form.get("phone")), planSku, addonSkus: addons, billingCycle: cycle }, { onSuccess: result => setLocation(`/demo-payment/${result.paymentToken}`) });
+
+    createOrder.mutate(
+      {
+        visitorId: context.visitorId,
+        persona,
+        name: String(form.get("name")),
+        email: String(form.get("email")),
+        phone: String(form.get("phone")),
+        planSku,
+        addonSkus: addons,
+        billingCycle: cycle,
+      },
+      {
+        onSuccess: (result) => setLocation(`/demo-payment/${result.paymentToken}`),
+      }
+    );
   };
 
-  return <div className="min-h-screen bg-[#fbfbff] py-8 md:py-14"><div className="container">
-    <div className="mb-9 flex items-center justify-between"><a href="/" className="flex items-center"><img src="/manus-storage/mofawtar-wordmark_74721d27.png" alt="مفوتر" className="h-9"/></a><a href="/" className="flex items-center gap-2 text-sm font-bold text-[#4046B5]"><ArrowRight className="h-4 w-4"/>{content.checkout.back}</a></div>
-    <div className="grid gap-7 lg:grid-cols-[1fr_.78fr]">
-      <form onSubmit={submit} className="rounded-[2rem] border border-[#4046B5]/10 bg-white p-6 md:p-9">
-        <p className="mof-eyebrow">{content.checkout.eyebrow}</p><h1 className="mt-4 text-3xl font-extrabold">{content.checkout.title}</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-[#5b5c72]">{content.checkout.body}</p>
-        <section className="mt-9"><h2 className="text-lg font-extrabold">بيانات التواصل</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="grid gap-2"><Label htmlFor="customer-name">{content.checkout.name}</Label><Input id="customer-name" name="name" required/></div><div className="grid gap-2"><Label htmlFor="customer-phone">{content.checkout.phone}</Label><Input id="customer-phone" name="phone" required dir="ltr" inputMode="tel"/></div><div className="grid gap-2 sm:col-span-2"><Label htmlFor="customer-email">{content.checkout.email}</Label><Input id="customer-email" name="email" type="email" required dir="ltr"/></div></div></section>
-        <section className="mt-9"><div className="flex items-end justify-between"><h2 className="text-lg font-extrabold">اختر باقتك</h2><span className="text-xs text-[#64657a]">{persona === "firm" ? "تجربة مكتب محاسبة" : "تجربة محاسب أو شركة"}</span></div><RadioGroup value={planSku} onValueChange={setPlanSku} className="mt-4 grid gap-3">{availablePlans.map(item => <label key={item.sku} className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${planSku === item.sku ? "border-[#4046B5] bg-[#ECECF7]" : "border-[#4046B5]/12"}`}><div className="flex items-center gap-3"><RadioGroupItem value={item.sku}/><div><p className="font-extrabold">{item.name}</p><p className="text-xs text-[#64657a]">{item.files} · {item.users}</p></div></div><span className="font-[Inter] text-sm font-bold" dir="ltr">{formatEgp(item.annualPiastres)}</span></label>)}</RadioGroup></section>
-        <section className="mt-9"><h2 className="text-lg font-extrabold">{content.checkout.cycle}</h2><div className="mt-4 flex gap-3"><button type="button" onClick={() => setCycle("annual")} className={`rounded-xl border px-5 py-3 text-sm font-bold ${cycle === "annual" ? "border-[#4046B5] bg-[#4046B5] text-white" : "border-[#4046B5]/12"}`}>{content.pricing.annual}</button><button type="button" onClick={() => setCycle("monthly")} className={`rounded-xl border px-5 py-3 text-sm font-bold ${cycle === "monthly" ? "border-[#4046B5] bg-[#4046B5] text-white" : "border-[#4046B5]/12"}`}>{content.pricing.monthly}</button></div></section>
-        <section className="mt-9"><h2 className="text-lg font-extrabold">{content.checkout.addons}</h2><p className="mt-2 text-xs text-[#64657a]">اختر فقط ما تحتاجه؛ سيظهر أثره في الإجمالي فورًا.</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{ADDONS.map(item => { const included = item.includedIn?.includes(planSku); return <label key={item.sku} className={`flex items-center gap-3 rounded-xl border p-3 text-sm ${included ? "border-[#4046B5]/20 bg-[#ECECF7]" : "cursor-pointer border-[#4046B5]/10"}`}><Checkbox disabled={included} checked={included || addons.includes(item.sku)} onCheckedChange={() => toggleAddon(item.sku)}/><span className="flex-1 font-bold">{item.name}<span className="mt-1 block text-[11px] font-normal text-[#64657a]">{included ? "متضمنة في الباقة المختارة" : item.salesCue}</span></span><span className="font-[Inter] text-xs text-[#64657a]">{included ? "متضمن" : formatEgp(cycle === "annual" ? item.annualPiastres : Math.round(item.annualPiastres / 12))}</span></label>; })}</div></section>
-        <Button type="submit" disabled={createOrder.isPending || !quote.data} className="mt-10 h-13 w-full rounded-xl bg-[#4046B5] text-base hover:bg-[#343aa0]">{content.checkout.payment}<LockKeyhole className="mr-2 h-4 w-4"/></Button>{createOrder.error && <p className="mt-3 text-sm text-destructive">{createOrder.error.message}</p>}
-      </form>
-      <aside className="h-fit rounded-[2rem] border border-[#4046B5]/10 bg-[#07081A] p-6 text-white lg:sticky lg:top-8"><p className="text-xs font-bold tracking-[.18em] text-[#bfc2ff]">{content.checkout.summary}</p><div className="mt-7 border-b border-white/10 pb-6"><p className="text-xl font-extrabold">{plan?.name}</p><p className="mt-2 text-sm text-white/60">{plan?.description}</p></div><div className="space-y-4 py-6 text-sm"><div className="flex justify-between"><span className="text-white/65">{content.checkout.subtotal}</span><strong dir="ltr">{quote.data ? formatEgp(quote.data.subtotalPiastres) : "…"}</strong></div><div className="flex justify-between"><span className="text-white/65">{content.checkout.discount}</span><strong dir="ltr" className="text-[#c6c9ff]">-{quote.data ? formatEgp(quote.data.discountPiastres) : "…"}</strong></div><div className="flex justify-between"><span className="text-white/65">{content.checkout.vat}</span><strong dir="ltr">{quote.data ? formatEgp(quote.data.vatPiastres) : "…"}</strong></div></div><div className="rounded-2xl bg-white/10 p-4"><div className="flex items-end justify-between"><span className="font-bold">{content.checkout.total}</span><strong className="font-[Inter] text-2xl" dir="ltr">{quote.data ? formatEgp(quote.data.totalPiastres) : "…"}</strong></div></div><p className="mt-5 flex items-center gap-2 text-xs leading-6 text-white/55"><Check className="h-4 w-4 text-[#bfc2ff]"/>سيظهر العرض التجريبي بوضوح قبل الاعتماد.</p></aside>
+  const paymentMethods = [
+    {
+      id: "card",
+      name: "البطاقات البنكية وميزة",
+      desc: "فيزا، ماستركارد، بطاقة ميزة الوطنية",
+      badge: "دفع فوري",
+      icon: CreditCard,
+    },
+    {
+      id: "fawry",
+      name: "شبكة فوري (Fawry Pay)",
+      desc: "ادفع من أي منفذ فوري أو محفظة إلكترونية",
+      badge: "رمز دفع فوري",
+      icon: Receipt,
+    },
+    {
+      id: "wallets",
+      name: "المحافظ وإنستاباي (InstaPay)",
+      desc: "فودافون كاش، أورنج، اتصالات، وي، إنستاباي",
+      badge: "تحويل مباشر",
+      icon: Smartphone,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#FBFBFF] py-8 md:py-14 text-[#07081A]">
+      <div className="container max-w-6xl">
+        {/* Top Navigation */}
+        <div className="mb-8 flex items-center justify-between border-b border-[#4046B5]/10 pb-5">
+          <a href="/" className="inline-flex items-center gap-2">
+            <img src="/brand/mofawtar-badge-logo.png" alt="مفوتر" className="h-9 w-auto" />
+          </a>
+          <a
+            href="/"
+            className="flex items-center gap-2 text-xs font-extrabold text-[#4046B5] transition hover:text-[#343aa0]"
+          >
+            <ArrowRight className="h-4 w-4" />
+            الرجوع إلى الصفحة الرئيسية
+          </a>
+        </div>
+
+        {/* Stepper Header */}
+        <div className="mb-8 rounded-2xl border border-[#4046B5]/12 bg-[#ECECF7]/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-extrabold">
+            <div className="flex items-center gap-2 text-[#4046B5]">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-[#4046B5] text-white">1</span>
+              <span>تأكيد الباقة والتفاصيل</span>
+            </div>
+            <div className="hidden h-px flex-1 bg-[#4046B5]/20 md:block" />
+            <div className="flex items-center gap-2 text-[#07081A]">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-white border border-[#4046B5]/30">2</span>
+              <span>بيانات الاتصال والنشاط</span>
+            </div>
+            <div className="hidden h-px flex-1 bg-[#4046B5]/20 md:block" />
+            <div className="flex items-center gap-2 text-[#64657a]">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-white border border-[#4046B5]/20">3</span>
+              <span>اعتماد الدفع التجريبي</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] items-start">
+          {/* Main Checkout Form */}
+          <form onSubmit={submit} className="rounded-[2.2rem] border border-[#4046B5]/12 bg-white p-6 md:p-9 shadow-sm">
+            <div>
+              <p className="mof-eyebrow">إتمام الاشتراك الآمن</p>
+              <h1 className="mt-2 text-3xl font-extrabold text-[#07081A]">{content.checkout.title}</h1>
+              <p className="mt-2 text-xs leading-6 text-[#5b5c72]">
+                خطوة واحدة تفصلك عن تنظيم فواتيرك وملفاتك الضريبية بأعلى دقة واحترافية.
+              </p>
+            </div>
+
+            {/* Section 1: Contact & Business Details */}
+            <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-[#07081A]">
+                <Building2 className="h-4 w-4 text-[#4046B5]" />
+                1. بيانات النشاط والتواصل
+              </h2>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="customer-name" className="text-xs font-bold">
+                    {persona === "firm" ? "اسم المكتب / المسؤول" : "اسم الشركة أو النشاط التجاري"} *
+                  </Label>
+                  <Input
+                    id="customer-name"
+                    name="name"
+                    placeholder="مثال: مكتب النيل للمحاسبة والمراجعة"
+                    required
+                    className="h-11 rounded-xl border-[#4046B5]/20 text-xs"
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="customer-phone" className="text-xs font-bold">
+                    رقم الهاتف المحمول (واتساب) *
+                  </Label>
+                  <Input
+                    id="customer-phone"
+                    name="phone"
+                    placeholder="01xxxxxxxxx"
+                    required
+                    dir="ltr"
+                    inputMode="tel"
+                    className="h-11 rounded-xl border-[#4046B5]/20 text-xs"
+                  />
+                </div>
+
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label htmlFor="customer-email" className="text-xs font-bold">
+                    البريد الإلكتروني للعمل *
+                  </Label>
+                  <Input
+                    id="customer-email"
+                    name="email"
+                    type="email"
+                    placeholder="name@company.com"
+                    required
+                    dir="ltr"
+                    className="h-11 rounded-xl border-[#4046B5]/20 text-xs"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Section 2: Choose Plan */}
+            <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-base font-extrabold text-[#07081A]">
+                  <Receipt className="h-4 w-4 text-[#4046B5]" />
+                  2. تأكيد باقة الاشتراك
+                </h2>
+                <span className="mof-stamp px-2 py-0.5 text-[10px]">
+                  {persona === "firm" ? "باقات مكاتب المحاسبة" : "باقة الشركات"}
+                </span>
+              </div>
+
+              <RadioGroup value={planSku} onValueChange={setPlanSku} className="mt-4 grid gap-3">
+                {availablePlans.map((item) => {
+                  const isCurrent = planSku === item.sku;
+                  const price = item.annualPiastres;
+                  return (
+                    <label
+                      key={item.sku}
+                      className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${
+                        isCurrent
+                          ? "border-[#4046B5] bg-[#ECECF7]/80 ring-2 ring-[#4046B5]/20"
+                          : "border-[#4046B5]/12 hover:border-[#4046B5]/30 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value={item.sku} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-extrabold text-sm text-[#07081A]">{item.name}</p>
+                            {item.featured && (
+                              <span className="rounded-full bg-[#4046B5] px-2 py-0.5 text-[10px] font-bold text-white">
+                                موصى بها
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-[#64657a]">
+                            {item.files} · {item.users}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-left">
+                        <span className="font-[Inter] text-sm font-black text-[#4046B5]" dir="ltr">
+                          {formatEgp(price)}
+                        </span>
+                        <p className="text-[10px] text-[#8e90a8]">
+                          / سنويًا
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+            </section>
+
+            {/* Section 3: Billing Plan Type */}
+            <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
+              <h2 className="text-base font-extrabold text-[#07081A]">3. نوع الاشتراك وفترة الصلاحية</h2>
+              <div className="mt-3 flex items-center justify-between rounded-2xl border border-[#10B981]/30 bg-[#ECFDF5] p-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#10B981] text-white">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-black text-[#065F46]">اشتراك سنوي شامل معتمد (12 شهرًا)</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[#047857]">
+                      يشمل كافة التحديثات الدورية والدعم الفني والربط مع منظومة مصلحة الضرائب المصرية ETA
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-[#10B981] px-3 py-1 text-xs font-black text-white shadow-xs">
+                  سنة كاملة
+                </span>
+              </div>
+            </section>
+
+            {/* Section 4: Add-ons */}
+            <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
+              <h2 className="text-base font-extrabold text-[#07081A]">4. الإضافات الاختيارية</h2>
+              <p className="mt-1 text-xs text-[#64657a]">اختر فقط ما تحتاجه؛ وسيتم احتسابه فورًا في الفاتورة السنوية.</p>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {ADDONS.map((item) => {
+                  const included = item.includedIn?.includes(planSku);
+                  const isChecked = included || addons.includes(item.sku);
+                  const price = item.annualPiastres;
+
+                  return (
+                    <div
+                      key={item.sku}
+                      role={included ? undefined : "button"}
+                      tabIndex={included ? undefined : 0}
+                      onClick={() => {
+                        if (!included) toggleAddon(item.sku);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!included && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          toggleAddon(item.sku);
+                        }
+                      }}
+                      className={`flex flex-col justify-between rounded-2xl border-2 p-4 transition-all duration-200 ${
+                        included
+                          ? "border-[#10B981]/40 bg-[#10B981]/10 cursor-default"
+                          : isChecked
+                          ? "border-[#10B981] bg-[#ECFDF5] ring-2 ring-[#10B981]/20 shadow-xs cursor-pointer"
+                          : "border-[#4046B5]/15 bg-white hover:border-[#4046B5]/30 hover:bg-[#FBFBFF] cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border-2 transition-all ${
+                            included
+                              ? "border-[#10B981] bg-[#10B981] text-white"
+                              : isChecked
+                              ? "border-[#10B981] bg-[#10B981] text-white shadow-xs"
+                              : "border-[#4046B5]/30 bg-white text-transparent hover:border-[#4046B5]"
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-[#07081A] flex items-center gap-1.5">
+                            {item.name}
+                            {included && (
+                              <span className="rounded-full bg-[#10B981] px-2 py-0.5 text-[9px] font-black text-white">
+                                متضمنة
+                              </span>
+                            )}
+                          </p>
+                          <p className="mt-1 text-[11px] text-[#5b5c72] leading-5">
+                            {included ? "متضمنة مجانًا في باقتك الأساسية" : item.salesCue}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 border-t border-[#4046B5]/10 pt-2 flex items-center justify-between text-xs">
+                        <span className={`text-[10px] font-bold ${isChecked ? "text-[#10B981]" : "text-[#64657a]"}`}>
+                          {included ? "بدون تكلفة إضافية" : isChecked ? "✓ مضافة إلى الطلب" : "+ انقر للإضافة"}
+                        </span>
+                        <span className={`font-[Inter] text-xs font-black ${included ? "text-[#10B981]" : isChecked ? "text-[#10B981]" : "text-[#4046B5]"}`} dir="ltr">
+                          {included ? "مجاناً" : `+ ${formatEgp(price)}`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Section 5: Payment Method */}
+            <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
+              <h2 className="text-base font-extrabold text-[#07081A]">5. وسيلة الدفع المفضلة</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {paymentMethods.map((pm) => {
+                  const isSelected = selectedPaymentMethod === pm.id;
+                  const Icon = pm.icon;
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod(pm.id)}
+                      className={`flex flex-col justify-between rounded-2xl border p-4 text-right transition ${
+                        isSelected
+                          ? "border-[#4046B5] bg-[#ECECF7]/80 ring-2 ring-[#4046B5]/20"
+                          : "border-[#4046B5]/12 bg-white hover:border-[#4046B5]/30"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Icon className="h-5 w-5 text-[#4046B5]" />
+                          <span className="rounded-full bg-[#10B981]/15 px-2 py-0.5 text-[9px] font-black text-[#10B981]">
+                            {pm.badge}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs font-black text-[#07081A]">{pm.name}</p>
+                        <p className="mt-1 text-[10px] text-[#64657a]">{pm.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Submit Action Button */}
+            <Button
+              type="submit"
+              disabled={createOrder.isPending || !quote.data}
+              className="mt-9 h-14 w-full rounded-2xl bg-[#4046B5] text-base font-black text-white shadow-lg shadow-[#4046B5]/30 transition hover:bg-[#343aa0] hover:scale-[1.01] active:scale-99"
+            >
+              {createOrder.isPending ? "جارٍ إعداد أمر الدفع..." : "متابعة لتأكيد الدفع التجريبي"}
+              <LockKeyhole className="mr-2 h-4 w-4" />
+            </Button>
+
+            {createOrder.error && (
+              <p className="mt-3 text-center text-xs font-bold text-destructive">
+                {createOrder.error.message}
+              </p>
+            )}
+          </form>
+
+          {/* Sticky Order Summary Card */}
+          <aside className="rounded-[2.2rem] border border-white/10 bg-[#07081A] p-7 text-white shadow-2xl lg:sticky lg:top-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <span className="mof-stamp-white px-3 py-1 text-xs">ملخص أمر الشراء</span>
+              <span className="text-xs font-bold text-[#b9bdff]">موفوتر 2026</span>
+            </div>
+
+            <div className="mt-6 border-b border-white/10 pb-6">
+              <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-extrabold text-[#d7d8ff]">
+                {persona === "firm" ? "باقة مكتب محاسبة" : "باقة شركة"}
+              </span>
+              <h3 className="mt-3 text-2xl font-black text-white">{plan?.name}</h3>
+              <p className="mt-1 text-xs text-white/60">{plan?.description}</p>
+              <div className="mt-3 flex items-center gap-3 text-xs text-[#b9bdff]">
+                <span>{plan?.files}</span>
+                <span>•</span>
+                <span>{plan?.users}</span>
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <div className="space-y-3.5 py-6 text-xs">
+              <div className="flex justify-between">
+                <span className="text-white/70">سعر الباقة الأساسي (سنوي):</span>
+                <strong className="font-[Inter] text-sm font-extrabold" dir="ltr">
+                  {quote.data ? formatEgp(quote.data.subtotalPiastres) : "…"}
+                </strong>
+              </div>
+
+              {addons.length > 0 && (
+                <div className="rounded-xl bg-white/[.04] p-3 text-[11px]">
+                  <span className="font-bold text-[#b9bdff]">الإضافات المختارة:</span>
+                  {addons.map((sku) => {
+                    const item = ADDONS.find((a) => a.sku === sku);
+                    return (
+                      <div key={sku} className="mt-1.5 flex justify-between text-white/80">
+                        <span>+ {item?.name}</span>
+                        <span className="font-[Inter]" dir="ltr">
+                          {formatEgp(item?.annualPiastres ?? 0)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {quote.data && quote.data.discountPiastres > 0 && (
+                <div className="flex justify-between text-[#38ef7d]">
+                  <span className="flex items-center gap-1 font-bold">
+                    <BadgePercent className="h-3.5 w-3.5" />
+                    خصم العرض السنوي (10%):
+                  </span>
+                  <strong className="font-[Inter] text-sm font-extrabold" dir="ltr">
+                    - {formatEgp(quote.data.discountPiastres)}
+                  </strong>
+                </div>
+              )}
+
+              <div className="flex justify-between text-white/70">
+                <span>ضريبة القيمة المضافة (14% VAT):</span>
+                <strong className="font-[Inter] text-sm font-extrabold" dir="ltr">
+                  {quote.data ? formatEgp(quote.data.vatPiastres) : "…"}
+                </strong>
+              </div>
+            </div>
+
+            {/* Total Box */}
+            <div className="rounded-2xl bg-gradient-to-r from-[#4046B5] to-[#272d82] p-5">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white/80">الإجمالي النهائي المطلوب</p>
+                  <p className="text-[10px] text-white/60">شامل ضريبة القيمة المضافة 14%</p>
+                </div>
+                <strong className="font-[Inter] text-2xl font-black text-white" dir="ltr">
+                  {quote.data ? formatEgp(quote.data.totalPiastres) : "…"}
+                </strong>
+              </div>
+            </div>
+
+            {/* Trust Badges */}
+            <div className="mt-6 space-y-2.5 border-t border-white/10 pt-5 text-xs text-white/65">
+              <p className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[#38ef7d] shrink-0" />
+                ضمان ذهبي 14 يومًا لاسترجاع القيمة وفق الشروط.
+              </p>
+              <p className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-[#38ef7d] shrink-0" />
+                إصدار عقد إلكتروني وفاتورة ضريبية رسمية فورية.
+              </p>
+              <p className="flex items-center gap-2">
+                <LockKeyhole className="h-4 w-4 text-[#38ef7d] shrink-0" />
+                عملية تجريبية آمنة لا تتطلب بطاقة حقيقية في الـ PoC.
+              </p>
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
-  </div></div>;
+  );
 }
+

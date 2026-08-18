@@ -63,7 +63,7 @@ export async function createLead(input: { name: string; email: string; phone?: s
   return { contactId };
 }
 
-export async function createDemoOrder(input: { visitorId: string; persona: "firm" | "company"; name: string; email: string; phone: string; planSku: string; addonSkus: string[]; billingCycle: "annual" | "monthly"; quote: { plan: { name: string }; subtotalPiastres: number; discountPiastres: number; vatPiastres: number; totalPiastres: number } }) {
+export async function createDemoOrder(input: { visitorId: string; persona: "firm" | "company"; name: string; email: string; phone: string; planSku: string; addonSkus: string[]; billingCycle: "annual"; quote: { plan: { name: string }; subtotalPiastres: number; discountPiastres: number; vatPiastres: number; totalPiastres: number } }) {
   const orderId = `ord_${nanoid(14)}`;
   const paymentToken = newPaymentToken();
   const now = new Date();
@@ -151,7 +151,7 @@ export async function getContractByPaymentToken(token: string) {
   const order = await getOrderByPaymentToken(token);
   if (!order || order.status !== "PAID_DEMO") return undefined;
   const contract = await getContractByOrderId(order.orderId);
-  if (!contract || contract.html.includes("mofawtar-contract-stamp_968c5af8.png")) return contract;
+  if (!contract || contract.html.includes("/brand/mofawtar-official-stamp.png")) return contract;
   return refreshLegacyContract(order, contract);
 }
 
