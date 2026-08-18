@@ -12,6 +12,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 type DemoOrder = {
   id: number; orderId: string; visitorId: string; persona: string; customerName: string; email: string; phone: string; planSku: string; planName: string; addonSkus: string[]; billingCycle: string;
   subtotalPiastres: number; discountPiastres: number; vatPiastres: number; totalPiastres: number; status: "PENDING_DEMO" | "PAID_DEMO"; paymentTokenHash: string; paymentExpiresAt: Date; paidAt: Date | null; createdAt: Date; updatedAt: Date;
+  addons?: Array<{ sku: string; name: string; quantity: number; lineTotalPiastres: number }>;
 };
 
 type DemoContract = { contractId: string; orderId: string; contractNumber: string; html: string; checksum: string; createdAt: Date };
@@ -63,14 +64,57 @@ export async function createLead(input: { name: string; email: string; phone?: s
   return { contactId };
 }
 
-export async function createDemoOrder(input: { visitorId: string; persona: "firm" | "company"; name: string; email: string; phone: string; planSku: string; addonSkus: string[]; billingCycle: "annual"; quote: { plan: { name: string }; subtotalPiastres: number; discountPiastres: number; vatPiastres: number; totalPiastres: number } }) {
+export async function createDemoOrder(input: {
+  visitorId: string;
+  persona: "firm" | "company";
+  name: string;
+  email: string;
+  phone: string;
+  planSku: string;
+  addonSkus: string[];
+  billingCycle: "annual";
+  quote: {
+    plan: { name: string };
+    addons?: Array<{ sku: string; name: string; quantity: number; lineTotalPiastres: number }>;
+    subtotalPiastres: number;
+    discountPiastres: number;
+    vatPiastres: number;
+    totalPiastres: number;
+  };
+}) {
   const orderId = `ord_${nanoid(14)}`;
   const paymentToken = newPaymentToken();
   const now = new Date();
-  const item: DemoOrder = { id: 0, orderId, visitorId: input.visitorId, persona: input.persona, customerName: input.name, email: input.email, phone: input.phone, planSku: input.planSku, planName: input.quote.plan.name, addonSkus: input.addonSkus, billingCycle: input.billingCycle, subtotalPiastres: input.quote.subtotalPiastres, discountPiastres: input.quote.discountPiastres, vatPiastres: input.quote.vatPiastres, totalPiastres: input.quote.totalPiastres, status: "PENDING_DEMO", paymentTokenHash: tokenHash(paymentToken), paymentExpiresAt: new Date(now.getTime() + 30 * 60 * 1000), paidAt: null, createdAt: now, updatedAt: now };
+  const item: DemoOrder = {
+    id: 0,
+    orderId,
+    visitorId: input.visitorId,
+    persona: input.persona,
+    customerName: input.name,
+    email: input.email,
+    phone: input.phone,
+    planSku: input.planSku,
+    planName: input.quote.plan.name,
+    addonSkus: input.addonSkus,
+    addons: input.quote.addons || [],
+    billingCycle: input.billingCycle,
+    subtotalPiastres: input.quote.subtotalPiastres,
+    discountPiastres: input.quote.discountPiastres,
+    vatPiastres: input.quote.vatPiastres,
+    totalPiastres: input.quote.totalPiastres,
+    status: "PENDING_DEMO",
+    paymentTokenHash: tokenHash(paymentToken),
+    paymentExpiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+    paidAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
   memoryOrders.set(item.paymentTokenHash, item);
   const db = await getDb();
-  if (db) await db.insert(orders).values({ ...item, id: undefined });
+  if (db) {
+    const { id: _id, addons: _addons, ...dbValues } = item;
+    await db.insert(orders).values(dbValues);
+  }
   await recordTrackingEvent({ eventId: `order_${orderId}`, eventName: "order_created", visitorId: input.visitorId, sessionId: "server", pagePath: "/checkout", persona: input.persona, consentAnalytics: false, consentMarketing: false, properties: { orderId, planSku: input.planSku } });
   return { orderId, paymentToken };
 }
@@ -84,7 +128,19 @@ export async function getOrderByPaymentToken(token: string): Promise<DemoOrder |
 }
 
 export function orderPublicView(order: DemoOrder) {
-  return { orderId: order.orderId, planName: order.planName, billingCycle: order.billingCycle, subtotalPiastres: order.subtotalPiastres, discountPiastres: order.discountPiastres, vatPiastres: order.vatPiastres, totalPiastres: order.totalPiastres, status: order.status, expiresAt: order.paymentExpiresAt, customerName: order.customerName };
+  return {
+    orderId: order.orderId,
+    planName: order.planName,
+    billingCycle: order.billingCycle,
+    subtotalPiastres: order.subtotalPiastres,
+    discountPiastres: order.discountPiastres,
+    vatPiastres: order.vatPiastres,
+    totalPiastres: order.totalPiastres,
+    status: order.status,
+    expiresAt: order.paymentExpiresAt,
+    customerName: order.customerName,
+    addons: order.addons || [],
+  };
 }
 
 export async function approveDemoPayment(token: string) {

@@ -131,6 +131,18 @@ export default function Success() {
                   {formatEgp(order.data.totalPiastres)}
                 </p>
               </div>
+              {order.data.addons && order.data.addons.length > 0 && (
+                <div className="col-span-2 border-t border-[#4046B5]/10 pt-3">
+                  <span className="text-[#64657a] block mb-1">الإضافات والخدمات المعتمدة:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {order.data.addons.map((a: any) => (
+                      <span key={a.sku || a.name} className="rounded-lg bg-[#4046B5]/10 px-2.5 py-1 text-[11px] font-bold text-[#4046B5]">
+                        ✓ {a.name} {a.quantity > 1 ? `(العدد: ${a.quantity})` : ""}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

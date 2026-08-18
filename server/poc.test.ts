@@ -20,6 +20,26 @@ describe("PoC pricing", () => {
     const quote = calculateQuote("special", ["points"], "annual", new Date("2026-08-20T10:00:00+03:00"));
     expect(quote.addons).toHaveLength(0);
   });
+  it("calculates multi-quantity add-ons correctly with dynamic pricing and itemized lines", () => {
+    // professional plan: 50,000 piastres (500 EGP)
+    // 2 POS devices: 2 * 50,000 = 100,000 piastres (1,000 EGP)
+    // 3 Extra users: 3 * 5,000 = 15,000 piastres (150 EGP)
+    // Subtotal: 165,000 piastres (1,650 EGP)
+    // Discount (10%): 16,500 piastres (165 EGP)
+    // Taxable: 148,500 piastres
+    // VAT (14%): 20,790 piastres (207.90 EGP)
+    // Total: 169,290 piastres (1,692.90 EGP)
+    const quote = calculateQuote("professional", { pos: 2, user: 3 }, "annual", new Date("2026-08-20T10:00:00+03:00"));
+    expect(quote.subtotalPiastres).toBe(165000);
+    expect(quote.discountPiastres).toBe(16500);
+    expect(quote.vatPiastres).toBe(20790);
+    expect(quote.totalPiastres).toBe(169290);
+    expect(quote.addons).toHaveLength(2);
+    expect(quote.addons.find(a => a.sku === "pos")?.quantity).toBe(2);
+    expect(quote.addons.find(a => a.sku === "pos")?.lineTotalPiastres).toBe(100000);
+    expect(quote.addons.find(a => a.sku === "user")?.quantity).toBe(3);
+    expect(quote.addons.find(a => a.sku === "user")?.lineTotalPiastres).toBe(15000);
+  });
 });
 
 describe("PoC contract", () => {

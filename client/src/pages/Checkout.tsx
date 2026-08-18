@@ -1,6 +1,6 @@
 import content from "@/content/poc.ar.json";
 import { getPocContext, usePocTracking } from "@/hooks/usePocTracking";
-import { ADDONS, formatEgp, getPlansForPersona, PLANS, PROMO } from "@shared/poc";
+import { ADDONS, formatEgp, getPlansForPersona, parseAddonQuantities, PLANS, PROMO, serializeAddonQuantities, type AddonQuantities } from "@shared/poc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,9 @@ import {
   Phone,
   Mail,
   User,
-  BadgePercent
+  BadgePercent,
+  Plus,
+  Minus
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -43,17 +45,22 @@ export default function Checkout() {
   const cycle = "annual" as const;
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("card");
 
-  const [addons, setAddons] = useState<string[]>(() => {
+  const [addonQuantities, setAddonQuantities] = useState<AddonQuantities>(() => {
     const fromQuery = search.get("addons");
-    if (fromQuery) return fromQuery.split(",").filter(Boolean);
+    if (fromQuery) return parseAddonQuantities(fromQuery);
     try {
-      return JSON.parse(sessionStorage.getItem("mof_selected_addons") ?? "[]") as string[];
+      const stored = sessionStorage.getItem("mof_selected_addons");
+      return parseAddonQuantities(stored);
     } catch {
-      return [];
+      return {};
     }
   });
 
-  const quote = trpc.poc.quote.useQuery({ planSku, addonSkus: addons, billingCycle: "annual" });
+  const quote = trpc.poc.quote.useQuery({
+    planSku,
+    addonQuantities,
+    billingCycle: "annual",
+  });
   const createOrder = trpc.poc.createOrder.useMutation();
   const plan = PLANS.find((item) => item.sku === planSku);
   const trackingStarted = useRef(false);
@@ -73,13 +80,43 @@ export default function Checkout() {
   }, [track, persona]);
 
   useEffect(() => {
-    setAddons((current) =>
-      current.filter((sku) => !ADDONS.find((item) => item.sku === sku)?.includedIn?.includes(planSku))
-    );
+    setAddonQuantities((current) => {
+      const next = { ...current };
+      let changed = false;
+      Object.keys(next).forEach((sku) => {
+        if (ADDONS.find((item) => item.sku === sku)?.includedIn?.includes(planSku)) {
+          delete next[sku];
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
   }, [planSku]);
 
-  const toggleAddon = (sku: string) =>
-    setAddons((current) => (current.includes(sku) ? current.filter((item) => item !== sku) : [...current, sku]));
+  const setAddonQty = (sku: string, qty: number) => {
+    setAddonQuantities((prev) => {
+      const next = { ...prev };
+      if (qty <= 0) {
+        delete next[sku];
+      } else {
+        next[sku] = Math.min(qty, 999);
+      }
+      return next;
+    });
+  };
+
+  const toggleAddon = (sku: string) => {
+    setAddonQuantities((prev) => {
+      const current = prev[sku] || 0;
+      const next = { ...prev };
+      if (current > 0) {
+        delete next[sku];
+      } else {
+        next[sku] = 1;
+      }
+      return next;
+    });
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,7 +131,7 @@ export default function Checkout() {
         email: String(form.get("email")),
         phone: String(form.get("phone")),
         planSku,
-        addonSkus: addons,
+        addonQuantities,
         billingCycle: cycle,
       },
       {
@@ -307,71 +344,116 @@ export default function Checkout() {
 
             {/* Section 4: Add-ons */}
             <section className="mt-8 border-t border-[#4046B5]/10 pt-7">
-              <h2 className="text-base font-extrabold text-[#07081A]">4. الإضافات الاختيارية</h2>
-              <p className="mt-1 text-xs text-[#64657a]">اختر فقط ما تحتاجه؛ وسيتم احتسابه فورًا في الفاتورة السنوية.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-extrabold text-[#07081A]">4. الإضافات وسعات التشغيل</h2>
+                  <p className="mt-1 text-xs text-[#64657a]">اختر وحدات وكميات إضافية حسب احتياج فريقك؛ وسيتم احتسابها فوراً في الفاتورة.</p>
+                </div>
+              </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {ADDONS.map((item) => {
                   const included = item.includedIn?.includes(planSku);
-                  const isChecked = included || addons.includes(item.sku);
-                  const price = item.annualPiastres;
+                  const quantity = included ? 1 : addonQuantities[item.sku] || 0;
+                  const isChecked = quantity > 0;
+                  const unitPrice = item.annualPiastres;
+                  const lineTotal = unitPrice * (included ? 1 : quantity);
 
                   return (
                     <div
                       key={item.sku}
-                      role={included ? undefined : "button"}
-                      tabIndex={included ? undefined : 0}
-                      onClick={() => {
-                        if (!included) toggleAddon(item.sku);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!included && (e.key === "Enter" || e.key === " ")) {
-                          e.preventDefault();
-                          toggleAddon(item.sku);
-                        }
-                      }}
                       className={`flex flex-col justify-between rounded-2xl border-2 p-4 transition-all duration-200 ${
                         included
-                          ? "border-[#10B981]/40 bg-[#10B981]/10 cursor-default"
+                          ? "border-[#10B981]/40 bg-[#10B981]/10"
                           : isChecked
-                          ? "border-[#10B981] bg-[#ECFDF5] ring-2 ring-[#10B981]/20 shadow-xs cursor-pointer"
-                          : "border-[#4046B5]/15 bg-white hover:border-[#4046B5]/30 hover:bg-[#FBFBFF] cursor-pointer"
+                          ? "border-[#10B981] bg-[#ECFDF5] ring-2 ring-[#10B981]/20 shadow-xs"
+                          : "border-[#4046B5]/15 bg-white hover:border-[#4046B5]/30 hover:bg-[#FBFBFF]"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border-2 transition-all ${
-                            included
-                              ? "border-[#10B981] bg-[#10B981] text-white"
-                              : isChecked
-                              ? "border-[#10B981] bg-[#10B981] text-white shadow-xs"
-                              : "border-[#4046B5]/30 bg-white text-transparent hover:border-[#4046B5]"
-                          }`}
-                        >
-                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2.5">
+                            <button
+                              type="button"
+                              disabled={included}
+                              onClick={() => toggleAddon(item.sku)}
+                              className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border-2 transition-all ${
+                                included
+                                  ? "border-[#10B981] bg-[#10B981] text-white cursor-default"
+                                  : isChecked
+                                  ? "border-[#10B981] bg-[#10B981] text-white shadow-xs cursor-pointer"
+                                  : "border-[#4046B5]/30 bg-white text-transparent hover:border-[#4046B5] cursor-pointer"
+                              }`}
+                              title={included ? "متضمنة في الباقة" : isChecked ? "إلغاء التحديد" : "إضافة إلى الطلب"}
+                            >
+                              <Check className="h-3.5 w-3.5 stroke-[3]" />
+                            </button>
+                            <div>
+                              <p className="text-xs font-black text-[#07081A] flex items-center gap-1.5">
+                                {item.name}
+                                {included && (
+                                  <span className="rounded-full bg-[#10B981] px-2 py-0.5 text-[9px] font-black text-white">
+                                    متضمنة
+                                  </span>
+                                )}
+                              </p>
+                              <p className="mt-1 text-[11px] text-[#5b5c72] leading-5">
+                                {included ? "متضمنة مجانًا في باقتك الأساسية" : item.salesCue}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-black text-[#07081A] flex items-center gap-1.5">
-                            {item.name}
-                            {included && (
-                              <span className="rounded-full bg-[#10B981] px-2 py-0.5 text-[9px] font-black text-white">
-                                متضمنة
+
+                        {/* Interactive Quantity Stepper for unincluded addons */}
+                        {!included && (
+                          <div className="mt-3 flex items-center justify-between bg-white/70 rounded-xl p-1.5 border border-[#4046B5]/10">
+                            <span className="text-[11px] font-extrabold text-[#07081A] px-1">الكمية المطلوبة:</span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setAddonQty(item.sku, Math.max(0, quantity - 1))}
+                                disabled={quantity <= 0}
+                                className="grid h-7 w-7 place-items-center rounded-lg bg-[#ECECF7] text-[#4046B5] transition hover:bg-[#dfe1fb] disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="إنقاص الكمية"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+
+                              <span className="w-7 text-center font-[Inter] text-xs font-black text-[#07081A]" dir="ltr">
+                                {quantity}
                               </span>
-                            )}
-                          </p>
-                          <p className="mt-1 text-[11px] text-[#5b5c72] leading-5">
-                            {included ? "متضمنة مجانًا في باقتك الأساسية" : item.salesCue}
-                          </p>
-                        </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setAddonQty(item.sku, quantity + 1)}
+                                className="grid h-7 w-7 place-items-center rounded-lg bg-[#4046B5] text-white transition hover:bg-[#343aa0] shadow-xs"
+                                title="زيادة الكمية"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-3 border-t border-[#4046B5]/10 pt-2 flex items-center justify-between text-xs">
                         <span className={`text-[10px] font-bold ${isChecked ? "text-[#10B981]" : "text-[#64657a]"}`}>
-                          {included ? "بدون تكلفة إضافية" : isChecked ? "✓ مضافة إلى الطلب" : "+ انقر للإضافة"}
+                          {included
+                            ? "بدون تكلفة إضافية"
+                            : isChecked
+                            ? `✓ مضاف (${quantity})`
+                            : "+ غير محدد"}
                         </span>
-                        <span className={`font-[Inter] text-xs font-black ${included ? "text-[#10B981]" : isChecked ? "text-[#10B981]" : "text-[#4046B5]"}`} dir="ltr">
-                          {included ? "مجاناً" : `+ ${formatEgp(price)}`}
-                        </span>
+                        <div className="text-left">
+                          <span className={`font-[Inter] text-xs font-black ${included ? "text-[#10B981]" : isChecked ? "text-[#10B981]" : "text-[#4046B5]"}`} dir="ltr">
+                            {included ? "مجاناً" : isChecked ? `+ ${formatEgp(lineTotal)}` : `+ ${formatEgp(unitPrice)}`}
+                          </span>
+                          {!included && isChecked && quantity > 1 && (
+                            <p className="text-[9px] text-[#64657a]" dir="rtl">
+                              ({quantity} × {formatEgp(unitPrice)})
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -455,24 +537,21 @@ export default function Checkout() {
               <div className="flex justify-between">
                 <span className="text-white/70">سعر الباقة الأساسي (سنوي):</span>
                 <strong className="font-[Inter] text-sm font-extrabold" dir="ltr">
-                  {quote.data ? formatEgp(quote.data.subtotalPiastres) : "…"}
+                  {plan ? formatEgp(plan.annualPiastres) : "…"}
                 </strong>
               </div>
 
-              {addons.length > 0 && (
+              {quote.data && quote.data.addons.length > 0 && (
                 <div className="rounded-xl bg-white/[.04] p-3 text-[11px]">
                   <span className="font-bold text-[#b9bdff]">الإضافات المختارة:</span>
-                  {addons.map((sku) => {
-                    const item = ADDONS.find((a) => a.sku === sku);
-                    return (
-                      <div key={sku} className="mt-1.5 flex justify-between text-white/80">
-                        <span>+ {item?.name}</span>
-                        <span className="font-[Inter]" dir="ltr">
-                          {formatEgp(item?.annualPiastres ?? 0)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {quote.data.addons.map((item) => (
+                    <div key={item.sku} className="mt-1.5 flex justify-between text-white/80">
+                      <span>+ {item.name} {item.quantity > 1 ? `(×${item.quantity})` : ""}</span>
+                      <span className="font-[Inter] font-bold" dir="ltr">
+                        {formatEgp(item.lineTotalPiastres)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 

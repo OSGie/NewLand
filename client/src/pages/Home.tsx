@@ -4,7 +4,7 @@ import layout from "@/content/layout.ar.json";
 import claims from "@/content/claims.ar.json";
 import { getPocContext, usePocTracking } from "@/hooks/usePocTracking";
 import { trpc } from "@/lib/trpc";
-import { ADDONS, formatEgp, getPlansForPersona, isCampaignActive, PROMO, type Persona, type Plan } from "@shared/poc";
+import { ADDONS, calculateQuote, formatEgp, getPlansForPersona, isCampaignActive, PROMO, serializeAddonQuantities, type AddonQuantities, type Persona, type Plan } from "@shared/poc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,7 +42,10 @@ import {
   Star,
   Award,
   Search,
-  ArrowUpRight
+  ArrowUpRight,
+  Plus,
+  Minus,
+  Trash2
 } from "lucide-react";
 import { FormEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -1011,7 +1014,7 @@ export default function Home() {
   const [offerDismissed, setOfferDismissed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [selectedPlanSku, setSelectedPlanSku] = useState("professional");
-  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [addonQuantities, setAddonQuantities] = useState<AddonQuantities>({});
   const [consent, setConsent] = useState<Consent | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const [leadSent, setLeadSent] = useState(false);
@@ -1118,7 +1121,7 @@ export default function Home() {
     localStorage.setItem("mof_persona", value);
     setPersona(value);
     setSelectedPlanSku(first.sku);
-    setSelectedAddons([]);
+    setAddonQuantities({});
     setActiveOperating(0);
     setGateOpen(false);
     track("persona_selected", { persona: value, uiContext: context });
@@ -1126,26 +1129,59 @@ export default function Home() {
 
   const selectPlan = (sku: string) => {
     setSelectedPlanSku(sku);
-    setSelectedAddons([]);
+    setAddonQuantities({});
     track("plan_selected", { persona, uiContext: "pricing_card", properties: { plan_sku: sku } });
   };
 
+  const setAddonQty = (sku: string, qty: number) => {
+    setAddonQuantities((prev) => {
+      const next = { ...prev };
+      if (qty <= 0) {
+        delete next[sku];
+      } else {
+        next[sku] = Math.min(qty, 999);
+      }
+      return next;
+    });
+    track("addon_qty_changed", { persona, uiContext: "upsell", properties: { addon_sku: sku, quantity: qty } });
+  };
+
   const toggleAddon = (sku: string) => {
-    setSelectedAddons((val) => (val.includes(sku) ? val.filter((i) => i !== sku) : [...val, sku]));
+    setAddonQuantities((prev) => {
+      const current = prev[sku] || 0;
+      const next = { ...prev };
+      if (current > 0) {
+        delete next[sku];
+      } else {
+        next[sku] = 1;
+      }
+      return next;
+    });
     track("addon_toggled", { persona, uiContext: "upsell", properties: { addon_sku: sku } });
   };
 
   const continueToCheckout = () => {
     if (!selectedPlan) return;
+    const serializedAddons = serializeAddonQuantities(addonQuantities);
     sessionStorage.setItem("mof_selected_plan", selectedPlan.sku);
-    sessionStorage.setItem("mof_selected_addons", JSON.stringify(selectedAddons));
+    sessionStorage.setItem("mof_selected_addons", serializedAddons);
     track("checkout_started", {
       persona,
       uiContext: "upsell_cta",
-      properties: { plan_sku: selectedPlan.sku, addons: selectedAddons, billingCycle: "annual" },
+      properties: { plan_sku: selectedPlan.sku, addonQuantities, billingCycle: "annual" },
     });
-    setLocation(`/checkout?plan=${selectedPlan.sku}&persona=${persona}&addons=${selectedAddons.join(",")}&cycle=annual`);
+    const addonParam = serializedAddons ? `&addons=${encodeURIComponent(serializedAddons)}` : "";
+    setLocation(`/checkout?plan=${selectedPlan.sku}&persona=${persona}${addonParam}&cycle=annual`);
   };
+
+  const liveQuote = useMemo(() => {
+    if (!selectedPlan) return null;
+    try {
+      return calculateQuote(selectedPlan.sku, addonQuantities, "annual", new Date(now));
+    } catch {
+      return null;
+    }
+  }, [selectedPlan, addonQuantities, now]);
 
   const whatsapp = (placement: string) => {
     sessionStorage.setItem("mof_conversion_blocked", "whatsapp");
@@ -1524,56 +1560,52 @@ export default function Home() {
               <div className="grid gap-4">
                 {ADDONS.map((addon) => {
                   const included = addon.includedIn?.includes(selectedPlan?.sku ?? "");
-                  const chosen = selectedAddons.includes(addon.sku);
-                  const price = addon.annualPiastres;
+                  const quantity = included ? 1 : addonQuantities[addon.sku] || 0;
+                  const isSelected = quantity > 0;
+                  const unitPrice = addon.annualPiastres;
+                  const lineTotal = unitPrice * (included ? 1 : quantity);
 
                   return (
                     <div
                       key={addon.sku}
-                      role={included ? undefined : "button"}
-                      tabIndex={included ? undefined : 0}
-                      onClick={() => {
-                        if (!included) toggleAddon(addon.sku);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!included && (e.key === "Enter" || e.key === " ")) {
-                          e.preventDefault();
-                          toggleAddon(addon.sku);
-                        }
-                      }}
                       className={`relative flex flex-col justify-between rounded-3xl border-2 p-6 transition-all duration-200 ${
                         included
-                          ? "border-[#10B981]/50 bg-[#10B981]/10 text-white cursor-default"
-                          : chosen
-                          ? "border-[#10B981] bg-[#10B981]/15 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)] ring-2 ring-[#10B981]/40 cursor-pointer scale-[1.01]"
-                          : "border-white/20 bg-white/[.06] hover:border-white/40 hover:bg-white/[.10] text-white cursor-pointer"
+                          ? "border-[#10B981]/50 bg-[#10B981]/10 text-white"
+                          : isSelected
+                          ? "border-[#10B981] bg-[#10B981]/15 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)] ring-2 ring-[#10B981]/40"
+                          : "border-white/20 bg-white/[.06] hover:border-white/30 text-white"
                       }`}
                     >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-4">
-                          {/* Visual Indicator Checkbox */}
-                          <div
-                            className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-xl border-2 transition-all duration-200 ${
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        {/* Info & Checkbox */}
+                        <div className="flex items-start gap-4 flex-1">
+                          {/* Toggle Checkbox / Button */}
+                          <button
+                            type="button"
+                            disabled={included}
+                            onClick={() => toggleAddon(addon.sku)}
+                            className={`mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl border-2 transition-all duration-200 ${
                               included
-                                ? "border-[#10B981] bg-[#10B981] text-white shadow-xs"
-                                : chosen
-                                ? "border-[#10B981] bg-[#10B981] text-white shadow-md shadow-[#10B981]/40"
-                                : "border-white/50 bg-white/10 text-transparent hover:border-white"
+                                ? "border-[#10B981] bg-[#10B981] text-white shadow-xs cursor-default"
+                                : isSelected
+                                ? "border-[#10B981] bg-[#10B981] text-white shadow-md shadow-[#10B981]/40 cursor-pointer"
+                                : "border-white/50 bg-white/10 text-transparent hover:border-white cursor-pointer"
                             }`}
+                            title={included ? "متضمنة في الباقة" : isSelected ? "إلغاء التحديد" : "إضافة إلى الخطة"}
                           >
                             <Check className="h-4 w-4 stroke-[3]" />
-                          </div>
+                          </button>
 
-                          <div>
+                          <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-2.5">
                               <h3 className="text-lg font-black text-white">{addon.name}</h3>
                               {included ? (
                                 <span className="rounded-full bg-[#10B981] px-3 py-0.5 text-[11px] font-black text-white shadow-xs">
                                   ✓ متضمنة في باقتك مجاناً
                                 </span>
-                              ) : chosen ? (
+                              ) : isSelected ? (
                                 <span className="rounded-full bg-[#10B981] px-3 py-0.5 text-[11px] font-black text-white shadow-xs">
-                                  ✓ تمت الإضافة إلى الخطة
+                                  ✓ مضافة ({quantity})
                                 </span>
                               ) : (
                                 <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold text-white/80">
@@ -1590,23 +1622,83 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Price Tag */}
-                        <div className="shrink-0 text-left sm:text-left self-end sm:self-center border-t border-white/10 pt-3 sm:border-0 sm:pt-0">
-                          <p className="font-[Inter] text-xl font-black text-white" dir="ltr">
-                            {included ? "مجاناً" : `+ ${formatEgp(price)}`}
-                          </p>
-                          <p className="text-[10px] font-extrabold text-[#a5a9d8] mt-0.5">
-                            {included ? "ضمن الباقة الأساسية" : "/ سنويًا"}
-                          </p>
+                        {/* Controls & Price */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-3 md:border-0 md:pt-0 md:flex-col md:items-end">
+                          {/* Interactive Quantity Stepper */}
+                          {!included && (
+                            <div className="flex items-center gap-2 bg-white/10 rounded-2xl p-1.5 border border-white/15">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddonQty(addon.sku, Math.max(0, quantity - 1));
+                                }}
+                                disabled={quantity <= 0}
+                                className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="إنقاص الكمية"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+
+                              <div className="px-2 text-center min-w-[2.5rem]">
+                                <span className="font-[Inter] text-base font-black text-white" dir="ltr">
+                                  {quantity}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddonQty(addon.sku, quantity + 1);
+                                }}
+                                className="grid h-8 w-8 place-items-center rounded-xl bg-[#4046B5] text-white transition hover:bg-[#343aa0] shadow-sm"
+                                title="زيادة الكمية"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Price Tag */}
+                          <div className="text-left">
+                            <p className="font-[Inter] text-xl font-black text-white" dir="ltr">
+                              {included ? "مجاناً" : isSelected ? `+ ${formatEgp(lineTotal)}` : `+ ${formatEgp(unitPrice)}`}
+                            </p>
+                            <p className="text-[10px] font-extrabold text-[#a5a9d8] mt-0.5" dir="rtl">
+                              {included
+                                ? "ضمن الباقة الأساسية"
+                                : isSelected && quantity > 1
+                                ? `(${quantity} × ${formatEgp(unitPrice)}) / سنويًا`
+                                : "/ سنويًا للوحدة"}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
                   );
                 })}
 
+                {/* Real-time Quote Summary Card */}
+                {liveQuote && (
+                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-[#c6c8ff] font-bold">الإجمالي السنوي التقديري (شامل الضريبة 14% والخصم):</p>
+                      <p className="font-extrabold text-white mt-0.5">
+                        {liveQuote.plan.name} {liveQuote.addons.length > 0 && `+ ${liveQuote.addons.length} إضافات (${liveQuote.addons.reduce((s, a) => s + a.quantity, 0)} وحدات)`}
+                      </p>
+                    </div>
+                    <div className="text-left" dir="ltr">
+                      <span className="font-[Inter] text-2xl font-black text-[#10B981]">
+                        {formatEgp(liveQuote.totalPiastres)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={continueToCheckout}
-                  className="mt-4 h-14 rounded-2xl bg-white text-base font-black text-[#4046B5] shadow-xl hover:bg-[#ECECF7] hover:scale-[1.01] active:scale-98 transition-all"
+                  className="mt-2 h-14 rounded-2xl bg-white text-base font-black text-[#4046B5] shadow-xl hover:bg-[#ECECF7] hover:scale-[1.01] active:scale-98 transition-all"
                 >
                   {sales.upsell.cta}
                   <ArrowLeft className="mr-2 h-5 w-5" />

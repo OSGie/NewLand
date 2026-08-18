@@ -16,7 +16,18 @@ const contractSchema = z.object({ customerName: z.string().min(2).max(160), taxC
 
 export const pocRouter = router({
   config: publicProcedure.query(() => ({ plans: PLANS, addons: ADDONS, promo: PROMO, analytics: ANALYTICS_DEMO_CONFIG })),
-  quote: publicProcedure.input(z.object({ planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual"]).default("annual").optional() })).query(({ input }) => calculateQuote(input.planSku, input.addonSkus, "annual")),
+  quote: publicProcedure
+    .input(
+      z.object({
+        planSku: z.string(),
+        addonSkus: z.array(z.string()).max(8).optional(),
+        addonQuantities: z.record(z.string(), z.number().int().min(0).max(999)).optional(),
+        billingCycle: z.enum(["annual"]).default("annual").optional(),
+      })
+    )
+    .query(({ input }) =>
+      calculateQuote(input.planSku, input.addonQuantities || input.addonSkus || {}, "annual")
+    ),
   track: publicProcedure.input(eventSchema).mutation(async ({ input }) => {
     await db.recordTrackingEvent(input);
     return { accepted: true };
@@ -25,12 +36,39 @@ export const pocRouter = router({
     const lead = await db.createLead(input);
     return { contactId: lead.contactId, downloadUrl: "/lead-magnet-demo" };
   }),
-  createOrder: publicProcedure.input(z.object({ visitorId: z.string().min(8), persona: z.enum(["firm", "company"]), name: z.string().min(2).max(120), email: z.string().email().max(320), phone: z.string().min(6).max(30), planSku: z.string(), addonSkus: z.array(z.string()).max(8), billingCycle: z.enum(["annual"]).default("annual").optional() })).mutation(async ({ input }) => {
-    let quote;
-    try { quote = calculateQuote(input.planSku, input.addonSkus, "annual"); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "الباقة المختارة غير متاحة." }); }
-    const order = await db.createDemoOrder({ ...input, billingCycle: "annual", quote });
-    return { orderId: order.orderId, paymentToken: order.paymentToken, quote };
-  }),
+  createOrder: publicProcedure
+    .input(
+      z.object({
+        visitorId: z.string().min(8),
+        persona: z.enum(["firm", "company"]),
+        name: z.string().min(2).max(120),
+        email: z.string().email().max(320),
+        phone: z.string().min(6).max(30),
+        planSku: z.string(),
+        addonSkus: z.array(z.string()).max(8).optional(),
+        addonQuantities: z.record(z.string(), z.number().int().min(0).max(999)).optional(),
+        billingCycle: z.enum(["annual"]).default("annual").optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      let quote;
+      try {
+        quote = calculateQuote(
+          input.planSku,
+          input.addonQuantities || input.addonSkus || {},
+          "annual"
+        );
+      } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "الباقة المختارة غير متاحة." });
+      }
+      const order = await db.createDemoOrder({
+        ...input,
+        addonSkus: Object.keys(quote.addonQuantities).filter(k => (quote.addonQuantities[k] ?? 0) > 0),
+        billingCycle: "annual",
+        quote,
+      });
+      return { orderId: order.orderId, paymentToken: order.paymentToken, quote };
+    }),
   getPaymentSession: publicProcedure.input(z.object({ token: z.string().min(20) })).query(async ({ input }) => {
     const order = await db.getOrderByPaymentToken(input.token);
     if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "رابط الدفع غير صالح أو انتهت صلاحيته." });
@@ -50,7 +88,15 @@ export const pocRouter = router({
     const order = await db.getOrderByPaymentToken(input.token);
     if (!order || order.status !== "PAID_DEMO") throw new TRPCError({ code: "FORBIDDEN", message: "العقد متاح بعد اعتماد الدفع التجريبي فقط." });
     const quote = { planName: order.planName, packagePrice: order.subtotalPiastres, vat: order.vatPiastres, discount: order.discountPiastres, total: order.totalPiastres };
-    const html = buildDemoContractHtml("PENDING", { ...input.details, planName: quote.planName, packagePrice: db.formatMoney(quote.packagePrice), vat: db.formatMoney(quote.vat), discount: db.formatMoney(quote.discount), total: db.formatMoney(quote.total) } satisfies ContractDetails);
+    const html = buildDemoContractHtml("PENDING", {
+      ...input.details,
+      planName: quote.planName,
+      packagePrice: db.formatMoney(quote.packagePrice),
+      vat: db.formatMoney(quote.vat),
+      discount: db.formatMoney(quote.discount),
+      total: db.formatMoney(quote.total),
+      addons: order.addons,
+    } satisfies ContractDetails);
     const contract = await db.createContract(order.orderId, html);
     await db.recordTrackingEvent({ eventId: `contract_${contract.contractId}`, eventName: "contract_generated", visitorId: order.visitorId, sessionId: "server", pagePath: "/contract", persona: order.persona as "firm" | "company", consentAnalytics: false, consentMarketing: false, properties: { orderId: order.orderId, contractNumber: contract.contractNumber, supportCopy: "queued_demo_only", recipient: "Support@mofawter.com" } });
     return { ...contract, supportCopy: "queued_demo_only" as const };

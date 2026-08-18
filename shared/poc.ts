@@ -87,19 +87,108 @@ export const ANALYTICS_DEMO_CONFIG = {
   metaPixelId: "000000000000000",
 };
 
+export type AddonQuantities = Record<string, number>;
+
+export type QuoteAddon = Addon & {
+  quantity: number;
+  lineTotalPiastres: number;
+};
+
+export function parseAddonQuantities(input: string | string[] | AddonQuantities | null | undefined): AddonQuantities {
+  if (!input) return {};
+  if (typeof input === "string") {
+    const result: AddonQuantities = {};
+    input.split(",").forEach(segment => {
+      const trimmed = segment.trim();
+      if (!trimmed) return;
+      if (trimmed.includes(":")) {
+        const [sku, qtyStr] = trimmed.split(":");
+        const qty = parseInt(qtyStr, 10);
+        if (sku && !isNaN(qty) && qty > 0) result[sku] = Math.min(qty, 999);
+      } else {
+        result[trimmed] = 1;
+      }
+    });
+    return result;
+  }
+  if (Array.isArray(input)) {
+    const result: AddonQuantities = {};
+    input.forEach(sku => {
+      if (typeof sku === "string" && sku.trim()) {
+        const trimmed = sku.trim();
+        if (trimmed.includes(":")) {
+          const [s, q] = trimmed.split(":");
+          const qty = parseInt(q, 10);
+          if (s && !isNaN(qty) && qty > 0) result[s] = Math.min(qty, 999);
+        } else {
+          result[trimmed] = (result[trimmed] || 0) + 1;
+        }
+      }
+    });
+    return result;
+  }
+  if (typeof input === "object") {
+    const result: AddonQuantities = {};
+    Object.entries(input).forEach(([sku, qty]) => {
+      if (typeof qty === "number" && qty > 0) {
+        result[sku] = Math.min(Math.floor(qty), 999);
+      }
+    });
+    return result;
+  }
+  return {};
+}
+
+export function serializeAddonQuantities(quantities: AddonQuantities): string {
+  return Object.entries(quantities)
+    .filter(([, qty]) => typeof qty === "number" && qty > 0)
+    .map(([sku, qty]) => (qty > 1 ? `${sku}:${qty}` : sku))
+    .join(",");
+}
+
 export function isCampaignActive(now = new Date()) { return now.getTime() < new Date(PROMO.deadlineIso).getTime(); }
 
-export function calculateQuote(planSku: string, addonSkus: string[], billingCycle: "annual" = "annual", now = new Date()) {
+export function calculateQuote(
+  planSku: string,
+  addonInput: string[] | AddonQuantities = {},
+  billingCycle: "annual" = "annual",
+  now = new Date()
+) {
   const plan = PLANS.find(item => item.sku === planSku);
   if (!plan) throw new Error("Unknown plan");
-  const chosenAddons = ADDONS.filter(item => addonSkus.includes(item.sku) && !item.includedIn?.includes(planSku));
+
+  const quantityMap = parseAddonQuantities(addonInput);
+
+  const chosenAddons: QuoteAddon[] = ADDONS
+    .filter(item => (quantityMap[item.sku] ?? 0) > 0 && !item.includedIn?.includes(planSku))
+    .map(item => {
+      const quantity = quantityMap[item.sku] || 1;
+      const lineTotalPiastres = item.annualPiastres * quantity;
+      return {
+        ...item,
+        quantity,
+        lineTotalPiastres,
+      };
+    });
+
   const planPrice = plan.annualPiastres;
-  const addonPrice = chosenAddons.reduce((sum, item) => sum + item.annualPiastres, 0);
+  const addonPrice = chosenAddons.reduce((sum, item) => sum + item.lineTotalPiastres, 0);
   const subtotalPiastres = planPrice + addonPrice;
   const discountPiastres = isCampaignActive(now) ? Math.floor((subtotalPiastres * PROMO.discountBps) / 10000) : 0;
   const taxablePiastres = subtotalPiastres - discountPiastres;
   const vatPiastres = Math.round((taxablePiastres * 14) / 100);
-  return { plan, addons: chosenAddons, billingCycle: "annual" as const, subtotalPiastres, discountPiastres, vatPiastres, totalPiastres: taxablePiastres + vatPiastres, campaignId: discountPiastres > 0 ? PROMO.campaignId : null };
+
+  return {
+    plan,
+    addons: chosenAddons,
+    addonQuantities: quantityMap,
+    billingCycle: "annual" as const,
+    subtotalPiastres,
+    discountPiastres,
+    vatPiastres,
+    totalPiastres: taxablePiastres + vatPiastres,
+    campaignId: discountPiastres > 0 ? PROMO.campaignId : null,
+  };
 }
 
 export function formatEgp(piastres: number) { return new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 2 }).format(piastres / 100); }
